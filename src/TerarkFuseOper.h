@@ -17,6 +17,7 @@
 #include <terark/util/fstrvec.hpp>
 #include <iostream>
 #include <thread>
+#include <terark/db/db_conf.hpp>
 
 
 struct TestRow {
@@ -34,9 +35,14 @@ class TerarkFuseOper {
 private:
     static terark::db::CompositeTablePtr tab;
     static terark::db::DbContextPtr ctx;
-    static bool insert(const std::string& key,const std::string& content);
-    static long long getRid(const std::string&path);
     static uint32_t path_idx_id;
+
+    static bool insert(const std::string& key,const std::string& content);
+
+    static long long getRid(const std::string &path);
+
+    static uint32_t getMode(const terark::llong rid);
+
 public:
     TerarkFuseOper(const char * dbpath){
         tab = terark::db::CompositeTable::open(dbpath);

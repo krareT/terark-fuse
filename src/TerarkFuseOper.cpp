@@ -20,7 +20,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     if (rid < 0){
         return -ENOENT;
     }
-
+    stbuf->st_mode;
     return ret;
 
 }
@@ -99,7 +99,17 @@ long long TerarkFuseOper::getRid(const std::string &path) {
     fstring key(path);
     ctx->indexSearchExact(path_idx_id,key,&ridvec);
 
-
     return ridvec.size() == 1 ? ridvec[0]: -1;
+}
+
+uint32_t TerarkFuseOper::getMode(const llong rid) {
+    if (rid < 0)
+        return -1;
+    valvec<byte> modeVal;
+
+    static const Schema &rowSchema = tab->rowSchema();
+
+
+    return 0;
 }
 

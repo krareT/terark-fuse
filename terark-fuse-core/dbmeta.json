@@ -1,19 +1,76 @@
 {
-    "RowSchema": {
-      "columns" : {
-        "file_name"   : { "type" :    "strzero"   },
-        "file_mode" :   { "type" :    "uint32"      },
-        "content"   :   { "type" :    "strzero"   }
+  "RowSchema": {
+    "columns": {
+      "path": {
+        "type": "strzero"
+      },
+      "content": {
+        "type": "strzero"
+      },
+      "mode": {
+        "type": "uint32"
+      },
+      "ino": {
+        "type": "uint128"
+      },
+      "nlink": {
+        "type": "uint128"
+      },
+      "uid": {
+        "type": "uint128"
+      },
+      "gid": {
+        "type": "uint128"
+      },
+      "size": {
+        "type": "uint128"
+      },
+      "blocks": {
+        "type": "uint128"
+      },
+      "atime": {
+        "type": "uint128"
+      },
+      "mtime": {
+        "type": "uint128"
+      },
+      "ctime": {
+        "type": "uint128"
       }
+    }
+  },
+  "ColumnGroups": {
+    "file_stat": {
+      "fields": [
+        "mode",
+        "info",
+        "nlink",
+        "uid",
+        "gid",
+        "size",
+        "blocks",
+        "atime",
+        "mtime",
+        "ctime"
+      ],
+      "inplaceUpdatable": true
     },
-    "MaxWrSegSize" 		: "3G",
-    "MinMergeSegNum"	: 3,
-    "TableIndex" : [
+    "keywords_and_description": {
+      "fields": [
+        "keywords",
+        "description"
+      ],
+      "dictZipSampleRatio": 0.01
+    }
+  },
+  "MaxWrSegSize": "3G",
+  "MinMergeSegNum": 3,
+  "TableIndex": [
     {
       "fields": "file_name",
-      "ordered" : true,
-      "unique" : true,
+      "ordered": true,
+      "unique": true,
       "nltNestLevel": 2
     }
-    ]
+  ]
 }

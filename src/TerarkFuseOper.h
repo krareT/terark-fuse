@@ -29,6 +29,10 @@ public:
         tab->safeStopAndWaitForCompress();
         tab = NULL;
     }
+    static void close(){
+        tab->safeStopAndWaitForCompress();
+        tab = NULL;
+    }
     /** Get file attributes.
 	 *
 	 * Similar to stat().  The 'st_dev' and 'st_blksize' fields are

@@ -2,6 +2,8 @@
 #define FUSE_USE_VERSION 29
 #include <fuse.h>
 #include <iostream>
+#include <bits/signum.h>
+#include <signal.h>
 #include "TerarkFuseOper.h"
 
 void fuse_init(struct fuse_operations &fo,TerarkFuseOper &tfo){
@@ -11,8 +13,14 @@ void fuse_init(struct fuse_operations &fo,TerarkFuseOper &tfo){
     fo.getattr = tfo.getattr;
     fo.readlink = tfo.readlink;
 }
+TerarkFuseOper *terark_fo;
+void sig_fuc(int sig){
+    terark_fo->close();
+    exit(1);
+}
 int main(int argc,char **argv) {
 
+    signal(SIGINT,sig_fuc);
     const char* dbpath = NULL;
     std::string flag = "-terark_core=";
     std::vector<char *> argvec;
@@ -31,7 +39,7 @@ int main(int argc,char **argv) {
     }
     std::cout << dbpath << std::endl;
     TerarkFuseOper tfo(dbpath);
-
+    terark_fo = &tfo;
     struct fuse_operations terark_fuse_oper;
     fuse_init(terark_fuse_oper,tfo);
 

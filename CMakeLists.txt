@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 2.8)
 project(terark_fuse)
 
+set(TERARKDB_PATH ~/Documents/pkg/terark-db-Linux-x86_64-g++-5.3-bmi2-1/)
+
+
+include_directories(${TERARKDB_PATH}/include)
+link_directories(${TERARKDB_PATH}/lib)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -D_FILE_OFFSET_BITS=64")
 set(SOURCE_FILES src/main.cpp src/TerarkFuseOper.cpp src/TerarkFuseOper.h)
 

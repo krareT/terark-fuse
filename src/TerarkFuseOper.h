@@ -9,28 +9,12 @@
 #include <cstdio>
 #include <fuse.h>
 #include <terark/db/db_table.hpp>
-#include <terark/io/MemStream.hpp>
-#include <terark/io/DataIO.hpp>
-#include <terark/io/RangeStream.hpp>
-#include <terark/lcast.hpp>
-#include <terark/util/autofree.hpp>
-#include <terark/util/fstrvec.hpp>
+
 #include <iostream>
 #include <thread>
 #include <terark/db/db_conf.hpp>
+#include "tfs.hpp"
 
-
-struct TestRow {
-    std::string path;
-    uint8_t file_mode;
-    std::string content;
-    enum{REG,DICT};
-    DATA_IO_LOAD_SAVE(TestRow,
-                      &terark::db::Schema::StrZero(path)
-                      &file_mode
-                      &terark::db::Schema::StrZero(content)
-    )
-};
 class TerarkFuseOper {
 private:
     static terark::db::CompositeTablePtr tab;

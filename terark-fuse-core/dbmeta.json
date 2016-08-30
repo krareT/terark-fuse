@@ -1,8 +1,9 @@
 {
     "RowSchema": {
       "columns" : {
-        "file_name" : { "type" : "strzero" },
-        "content"   : { "type" : "strzero" }
+        "file_name"   : { "type" :    "strzero"   },
+        "file_mode" :   { "type" :    "uint32"      },
+        "content"   :   { "type" :    "strzero"   }
       }
     },
     "MaxWrSegSize" 		: "3G",

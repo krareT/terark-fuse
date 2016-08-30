@@ -16,14 +16,34 @@
 #include <terark/util/autofree.hpp>
 #include <terark/util/fstrvec.hpp>
 #include <iostream>
+#include <thread>
+
+
+struct TestRow {
+    std::string path;
+    uint8_t file_mode;
+    std::string content;
+    enum{REG,DICT};
+    DATA_IO_LOAD_SAVE(TestRow,
+                      &terark::db::Schema::StrZero(path)
+                      &file_mode
+                      &terark::db::Schema::StrZero(content)
+    )
+};
 class TerarkFuseOper {
 private:
-    static terark::db::DbTablePtr tab;
-    static std::unordered_map<uint32_t , terark::db::DbContextPtr> ctx_map;
+    static terark::db::CompositeTablePtr tab;
+    static terark::db::DbContextPtr ctx;
+    static bool insert(const std::string& key,const std::string& content);
+    static long long getRid(const std::string&path);
+    static uint32_t path_idx_id;
 public:
     TerarkFuseOper(const char * dbpath){
         tab = terark::db::CompositeTable::open(dbpath);
         assert(tab != NULL);
+        path_idx_id = tab->getIndexId("file_name");
+        assert(path_idx_id < tab->getIndexNum());
+        ctx = tab->createDbContext();
     }
     ~TerarkFuseOper(){
         tab->safeStopAndWaitForCompress();
@@ -141,7 +161,7 @@ public:
      *
      * Changed in version 2.2
      */
-    int (*write) (const char *, const char *, size_t, off_t,
+    static int write (const char *, const char *, size_t, off_t,
                   struct fuse_file_info *);
 
     /** Get file system statistics
@@ -248,7 +268,7 @@ public:
      *
      * Introduced in version 2.3
      */
-    int (*readdir) (const char *, void *, fuse_fill_dir_t, off_t,
+    static int readdir (const char *, void *, fuse_fill_dir_t, off_t,
                     struct fuse_file_info *);
 
     /** Release directory
@@ -312,7 +332,7 @@ public:
      *
      * Introduced in version 2.5
      */
-    int (*create) (const char *, mode_t, struct fuse_file_info *);
+    static int create (const char *, mode_t, struct fuse_file_info *);
 
     /**
      * Change the size of an open file

@@ -8,10 +8,11 @@
 
 void fuse_init(struct fuse_operations &fo,TerarkFuseOper &tfo){
 
-    fo.read = tfo.read;
-    fo.open = tfo.open;
-    fo.getattr = tfo.getattr;
-    fo.readlink = tfo.readlink;
+    memset(&fo,0,sizeof(fo));
+    fo.read     = tfo.read;
+    fo.open     = tfo.open;
+    fo.getattr  = tfo.getattr;
+    fo.readdir  = tfo.readdir;
 }
 TerarkFuseOper *terark_fo;
 void sig_fuc(int sig){

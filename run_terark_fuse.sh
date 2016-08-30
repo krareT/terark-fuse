@@ -12,4 +12,5 @@ cd ../
 #run
 sudo fusermount -u $mnt_dir
 sudo mkdir /temp/terark
+sudo rm -f terark-fuse-core/run.lock
 sudo ./build/terark_fuse -d -s -f $mnt_dir -terark_core=./terark-fuse-core

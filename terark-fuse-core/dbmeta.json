@@ -1,0 +1,18 @@
+{
+    "RowSchema": {
+      "columns" : {
+        "file_name" : { "type" : "strzero" },
+        "content"   : { "type" : "strzero" }
+      }
+    },
+    "MaxWrSegSize" 		: "3G",
+    "MinMergeSegNum"	: 3,
+    "TableIndex" : [
+    {
+      "fields": "file_name",
+      "ordered" : true,
+      "unique" : true,
+      "nltNestLevel": 2
+    }
+    ]
+}

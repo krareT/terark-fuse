@@ -27,7 +27,7 @@ private:
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
 
-    struct stat &getStat(terark::TFS &tfs, struct stat &st);
+    struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
 
     terark::llong createFile(terark::TFS &tfs);
 

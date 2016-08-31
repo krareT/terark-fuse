@@ -10,61 +10,6 @@ uint64_t TerarkFuseOper::ns_per_sec = 1000000000;
 using namespace terark;
 using namespace db;
 
-int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
-    int ret = 0;
-    std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
-
-    memset(stbuf, 0, sizeof(struct stat));
-
-    if (strcmp(path, "/") == 0) {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2;
-        return 0;
-    }
-    llong rid = getRid(path);
-    if (rid > 0) {
-        getFileMetainfo(rid, *stbuf);
-    } else {
-        stbuf->st_mode = S_IFREG | 0777;
-        stbuf->st_nlink = 1;
-    }
-    return 0;
-}
-
-int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
-
-    std::cout << "TerarkFuseOper::open:" << path << std::endl;
-
-    llong rid;
-    if (false == ctx->indexKeyExists(path_idx_id, path)) {
-        if (ffo->flags & O_CREAT != 0) {
-            return this->create(path, ffo->flags, ffo);
-        } else {
-            return -ENOENT;
-        }
-    }
-    //file exist
-    return 0;
-
-}
-
-int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
-
-    std::cout << "TerarkFuseOper::read:" << path << std::endl;
-    size_t len;
-    if (ctx->indexKeyExists(path_idx_id, path) == false)
-        return -ENOENT;
-    len = strlen(hello_str);
-    memcpy(buf, hello_str, len);
-    return len;
-}
-
-int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
-
-    std::cout << "TerarkFuseOper::readlink:" << path << std::endl;
-    return 0;
-}
-
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
@@ -88,7 +33,67 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
         return -EACCES;
     return 0;
 }
+int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
+    int ret = 0;
+    std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
 
+    memset(stbuf, 0, sizeof(struct stat));
+
+    if (strcmp(path, "/") == 0) {
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;
+        return 0;
+    }
+    llong rid = getRid(path);
+    std::cout << "TerarkFuseOper::getattr rid:" << rid << std::endl;
+    if (rid < 0) {
+        return -ENOENT;
+    }
+    getFileMetainfo(rid, *stbuf);
+    return 0;
+}
+
+int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
+
+    std::cout << "TerarkFuseOper::open:" << path << std::endl;
+
+    llong rid;
+    if (false == ctx->indexKeyExists(path_idx_id, path)) {
+
+        std::cout << "TerarkFuseOper::open: file not exist" << path << std::endl;
+
+        if (ffo->flags & O_CREAT != 0) {
+
+            std::cout << "TerarkFuseOper::open:create new file" << path << std::endl;
+
+            return this->create(path, ffo->flags, ffo);
+        } else {
+            return -ENOENT;
+        }
+    }
+    std::cout << "TerarkFuseOper::open: file exist" << path << std::endl;
+
+    //file exist
+    return 0;
+
+}
+
+int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
+
+    std::cout << "TerarkFuseOper::read:" << path << std::endl;
+    size_t len;
+    if (ctx->indexKeyExists(path_idx_id, path) == false)
+        return -ENOENT;
+    len = strlen(hello_str);
+    memcpy(buf, hello_str, len);
+    return len;
+}
+
+int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
+
+    std::cout << "TerarkFuseOper::readlink:" << path << std::endl;
+    return 0;
+}
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi) {
 
@@ -118,19 +123,20 @@ long long TerarkFuseOper::getRid(const std::string &path) {
 
 bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf) {
 
-    TFS tfs;
+    assert(rid >= 0);
+    TFS_Colgroup_file_stat tfs_fs;
     valvec<byte> cgData;
 
     ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
     if (cgData.size() == 0) {
         return false;
     }
-    tfs.decode(cgData);
-    stbuf = getStat(tfs, stbuf);
+    tfs_fs.decode(cgData);
+    stbuf = getStat(tfs_fs, stbuf);
     return true;
 }
 
-struct stat &TerarkFuseOper::getStat(terark::TFS &tfs, struct stat &st) {
+struct stat &TerarkFuseOper::getStat(terark::TFS_Colgroup_file_stat &tfs, struct stat &st) {
 
     st.st_mode = tfs.mode;
     st.st_atim.tv_sec = tfs.atime / ns_per_sec;

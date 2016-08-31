@@ -30,6 +30,9 @@ int terark_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return g_TFO->readdir(path, buf, filler, offset, fi);
 }
 
+int terark_creat(const char *path, mode_t mod, struct fuse_file_info *ffi) {
+    return g_TFO->create(path, mod, ffi);
+}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -37,6 +40,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.open = terark_open;
     fo.getattr = terark_getattr;
     fo.readdir = terark_readdir;
+    fo.create = terark_creat;
 }
 
 void sig_fuc(int sig) {

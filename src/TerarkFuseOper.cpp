@@ -92,16 +92,11 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     if (offset < row.size()) {
         if (offset + size > row.size())
             size = row.size() - offset;
-        memcpy(buf, row.data(), size);
+        memcpy(buf, row.data() + offset, size);
     } else {
         size = 0;
     }
 
-    std::cout << "TerarkFuseOper::read len:" << size << std::endl;
-    char str[100];
-    snprintf(str, row.size(), "%s", row.data());
-    str[row.size()] = 0;
-    puts(str);
     return size;
 }
 

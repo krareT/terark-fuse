@@ -33,6 +33,7 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
         return -EACCES;
     return 0;
 }
+
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     int ret = 0;
     std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
@@ -50,6 +51,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
         return -ENOENT;
     }
     getFileMetainfo(rid, *stbuf);
+    stbuf->st_mode = S_IFREG | 0444;
     return 0;
 }
 
@@ -81,12 +83,26 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::read:" << path << std::endl;
-    size_t len;
     if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
-    len = strlen(hello_str);
-    memcpy(buf, hello_str, len);
-    return len;
+    auto rid = getRid(path);
+    valvec<byte> row;
+    ctx->selectOneColumn(rid, tab->getColumnId("content"), &row);
+
+    if (offset < row.size()) {
+        if (offset + size > row.size())
+            size = row.size() - offset;
+        memcpy(buf, row.data(), size);
+    } else {
+        size = 0;
+    }
+
+    std::cout << "TerarkFuseOper::read len:" << size << std::endl;
+    char str[100];
+    snprintf(str, row.size(), "%s", row.data());
+    str[row.size()] = 0;
+    puts(str);
+    return size;
 }
 
 int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
@@ -94,6 +110,7 @@ int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
     std::cout << "TerarkFuseOper::readlink:" << path << std::endl;
     return 0;
 }
+
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi) {
 
@@ -110,6 +127,23 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
+    std::cout << "TerarkFuseOper::write:" << path << std::endl;
+    valvec<byte> cgData;
+    if (ctx->indexKeyExists(path_idx_id, path) == false)
+        return -ENOENT;
+    auto rid = getRid(path);
+    TFS_Colgroup_file_stat tfs_fs;
+    ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
+    tfs_fs.decode(cgData);
+    TFS tfs(tfs_fs);
+    tfs.path = path;
+    tfs.content.assign(buf, size);
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+    rowBuilder.rewind();
+    rowBuilder << tfs;
+    if (ctx->upsertRow(rowBuilder.written()) < 0)
+        return -EACCES;
+    return size;
 }
 
 long long TerarkFuseOper::getRid(const std::string &path) {
@@ -133,6 +167,7 @@ bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf
     }
     tfs_fs.decode(cgData);
     stbuf = getStat(tfs_fs, stbuf);
+    printStat(stbuf);
     return true;
 }
 
@@ -161,6 +196,18 @@ terark::llong TerarkFuseOper::createFile(terark::TFS &tfs) {
     rowBuilder.rewind();
     rowBuilder << tfs;
     return ctx->insertRow(rowBuilder.written());
+}
+
+void TerarkFuseOper::printStat(struct stat &st) {
+
+    printf("print stat:\n");
+    std::cout << "gid:" << st.st_gid << std::endl;
+    std::cout << "uid:" << st.st_uid << std::endl;
+    std::cout << "mod:" << st.st_mode << std::endl;
+    std::cout << "nlk:" << st.st_nlink << std::endl;
+    std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec) << std::endl;
+    std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec) << std::endl;
+    std::cout << "atm:" << ctime(&st.st_atim.tv_sec) << std::endl;
 }
 
 

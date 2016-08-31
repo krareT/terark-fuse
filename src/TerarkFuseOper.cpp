@@ -60,21 +60,13 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     llong rid;
     if (false == ctx->indexKeyExists(path_idx_id, path)) {
-
-        std::cout << "TerarkFuseOper::open: file not exist" << path << std::endl;
-
         if (ffo->flags & O_CREAT != 0) {
-
-            std::cout << "TerarkFuseOper::open:create new file" << path << std::endl;
-
             return this->create(path, ffo->flags, ffo);
         } else {
             return -ENOENT;
         }
     }
     std::cout << "TerarkFuseOper::open: file exist" << path << std::endl;
-
-    //file exist
     return 0;
 
 }
@@ -85,6 +77,8 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
     auto rid = getRid(path);
+    if (rid < 0)
+        return -ENOENT;
     valvec<byte> row;
     ctx->selectOneColumn(rid, tab->getColumnId("content"), &row);
 
@@ -95,7 +89,11 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     } else {
         size = 0;
     }
-
+    timespec time;
+    clock_gettime(CLOCK_REALTIME, &time);
+    uint64_t nsec = time.tv_sec * ns_per_sec + time.tv_nsec;
+    fstring new_atime = terark::db::Schema::fstringOf(&nsec);
+    tab->updateColumn(rid, "atime", new_atime);
     return size;
 }
 
@@ -133,6 +131,14 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     tfs.path = path;
     tfs.content.assign(buf, size);
     tfs.size = size;
+    timespec time;
+    auto ret = clock_gettime(CLOCK_REALTIME, &time);
+    if (ret == -1)
+        return -errno;
+    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
+
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     rowBuilder.rewind();
     rowBuilder << tfs;

@@ -51,7 +51,6 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
         return -ENOENT;
     }
     getFileMetainfo(rid, *stbuf);
-    stbuf->st_mode = S_IFREG | 0444;
     return 0;
 }
 
@@ -133,6 +132,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     TFS tfs(tfs_fs);
     tfs.path = path;
     tfs.content.assign(buf, size);
+    tfs.size = size;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     rowBuilder.rewind();
     rowBuilder << tfs;
@@ -200,6 +200,7 @@ void TerarkFuseOper::printStat(struct stat &st) {
     std::cout << "uid:" << st.st_uid << std::endl;
     std::cout << "mod:" << st.st_mode << std::endl;
     std::cout << "nlk:" << st.st_nlink << std::endl;
+    std::cout << "siz:" << st.st_size << std::endl;
     std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec) << std::endl;
     std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec) << std::endl;
     std::cout << "atm:" << ctime(&st.st_atim.tv_sec) << std::endl;

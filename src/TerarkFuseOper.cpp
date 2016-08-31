@@ -3,13 +3,13 @@
 //
 
 #include "TerarkFuseOper.h"
-terark::db::DbTablePtr TerarkFuseOper::tab;
-uint32_t TerarkFuseOper::path_idx_id;
-terark::db::DbContextPtr TerarkFuseOper::ctx;
+
 const char *hello_path = "/hello";
 const char *hello_str = "Hello Terark\n";
+
 using namespace terark;
 using namespace db;
+
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     int ret = 0;
     std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
@@ -84,13 +84,6 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
-}
-
-bool TerarkFuseOper::insert(const std::string &key, const std::string &content) {
-
-
-
-    return false;
 }
 
 long long TerarkFuseOper::getRid(const std::string &path) {

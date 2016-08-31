@@ -11,31 +11,31 @@
         "type": "uint32"
       },
       "ino": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "nlink": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "uid": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "gid": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "size": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "blocks": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "atime": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "mtime": {
-        "type": "uint128"
+        "type": "uint64"
       },
       "ctime": {
-        "type": "uint128"
+        "type": "uint64"
       }
     }
   },
@@ -43,7 +43,7 @@
     "file_stat": {
       "fields": [
         "mode",
-        "info",
+        "ino",
         "nlink",
         "uid",
         "gid",
@@ -54,20 +54,13 @@
         "ctime"
       ],
       "inplaceUpdatable": true
-    },
-    "keywords_and_description": {
-      "fields": [
-        "keywords",
-        "description"
-      ],
-      "dictZipSampleRatio": 0.01
     }
   },
   "MaxWrSegSize": "3G",
   "MinMergeSegNum": 3,
   "TableIndex": [
     {
-      "fields": "file_name",
+      "fields": "path",
       "ordered": true,
       "unique": true,
       "nltNestLevel": 2

@@ -32,6 +32,8 @@ private:
     terark::llong createFile(terark::TFS &tfs);
 
     void printStat(struct stat &st);
+
+    std::string printFlag(uint64_t flag);
 public:
     static uint64_t ns_per_sec;
     TerarkFuseOper(const char *dbpath) {

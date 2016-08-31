@@ -57,7 +57,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::open:" << path << std::endl;
-
+    std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
     llong rid;
     if (false == ctx->indexKeyExists(path_idx_id, path)) {
         if (ffo->flags & O_CREAT != 0) {
@@ -210,6 +210,60 @@ void TerarkFuseOper::printStat(struct stat &st) {
     std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec) << std::endl;
     std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec) << std::endl;
     std::cout << "atm:" << ctime(&st.st_atim.tv_sec) << std::endl;
+}
+
+std::string TerarkFuseOper::printFlag(uint64_t flag) {
+
+    std::stringstream ss;
+    ss << "open flag:";
+    if (flag & O_APPEND)
+        ss << "O_APPEND,";
+
+    if (flag & O_ASYNC)
+        ss << "O_ASYNC,";
+
+    if (flag & O_CLOEXEC)
+        ss << "O_CLOEXEC";
+
+    if (flag & O_CREAT)
+        ss << "O_CREAT,";
+
+    if (flag & O_DIRECT)
+        ss << "O_DIRECT,";
+
+    if (flag & O_DIRECTORY)
+        ss << " O_DIRECTORY";
+
+    if (flag & O_DSYNC)
+        ss << " O_DSYNC";
+
+    if (flag & O_EXCL)
+        ss << " O_EXCL,";
+
+    if (flag & O_LARGEFILE)
+        ss << " O_LARGEFILE,";
+    if (flag & O_NOATIME)
+        ss << " O_NOATIME,";
+
+    if (flag & O_NOCTTY)
+        ss << " O_NOCTTY,";
+
+    if (flag & O_NOFOLLOW)
+        ss << " O_NOFOLLOW,";
+    if (flag & O_NONBLOCK)
+        ss << " O_NONBLOCK,";
+    if (flag & O_NDELAY)
+        ss << " O_NDELAY,";
+
+    if (flag & O_PATH)
+        ss << "O_PATH,";
+    if (flag & O_SYNC)
+        ss << " O_SYNC,";
+    if (flag & O_TRUNC)
+        ss << " O_TRUNC,";
+    ss << std::endl;
+    return ss.str();
+
 }
 
 

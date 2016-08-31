@@ -20,12 +20,19 @@ private:
     terark::db::CompositeTablePtr tab;
     terark::db::DbContextPtr ctx;
     uint32_t path_idx_id;
-
+    size_t file_stat_cg_id;
     long long getRid(const std::string &path);
 
     uint32_t getMode(const terark::llong rid);
 
+    bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
+
+    struct stat &getStat(terark::TFS &tfs, struct stat &st);
+
+    terark::llong createFile(terark::TFS &tfs);
+
 public:
+    static uint64_t ns_per_sec;
     TerarkFuseOper(const char *dbpath) {
 
         tab = terark::db::CompositeTable::open(dbpath);
@@ -33,6 +40,8 @@ public:
         path_idx_id = tab->getIndexId("path");
         assert(path_idx_id < tab->getIndexNum());
         ctx = tab->createDbContext();
+        file_stat_cg_id = tab->getColgroupId("file_stat");
+        assert(file_stat_cg_id < tab->getColgroupNum());
     }
 
     ~TerarkFuseOper() {

@@ -6,7 +6,7 @@
 
 const char *hello_path = "/hello";
 const char *hello_str = "Hello Terark\n";
-
+uint64_t TerarkFuseOper::ns_per_sec = 1000000000;
 using namespace terark;
 using namespace db;
 
@@ -16,42 +16,47 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
     memset(stbuf, 0, sizeof(struct stat));
 
-    llong rid = getRid(path);
-    if (rid < 0){
-        return -ENOENT;
+    if (strcmp(path, "/") == 0) {
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2;
+        return 0;
     }
-    stbuf->st_mode;
-    return ret;
-
+    llong rid = getRid(path);
+    if (rid > 0) {
+        getFileMetainfo(rid, *stbuf);
+    } else {
+        stbuf->st_mode = S_IFREG | 0777;
+        stbuf->st_nlink = 1;
+    }
+    return 0;
 }
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::open:" << path << std::endl;
-    int ret = 0;
-    if (strcmp(path, "/hello") != 0)
-        ret = -ENOENT;
-    if ((ffo->flags & 3) != O_RDONLY)
-        ret = -EACCES;
-    return ret;
+
+    llong rid;
+    if (false == ctx->indexKeyExists(path_idx_id, path)) {
+        if (ffo->flags & O_CREAT != 0) {
+            return this->create(path, ffo->flags, ffo);
+        } else {
+            return -ENOENT;
+        }
+    }
+    //file exist
+    return 0;
+
 }
 
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::read:" << path << std::endl;
     size_t len;
-    if(strcmp(path, hello_path) != 0)
+    if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
-
     len = strlen(hello_str);
-    if (offset < len) {
-        if (offset + size > len)
-            size = len - offset;
-        memcpy(buf, hello_str + offset, size);
-    } else
-        size = 0;
-
-    return size;
+    memcpy(buf, hello_str, len);
+    return len;
 }
 
 int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
@@ -60,16 +65,32 @@ int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
     return 0;
 }
 
-int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info * ffi) {
+int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
+    //check if exist
 
-    return -EACCES;
+    TFS tfs;
+    struct timespec time;
+    tfs.mode = mod;
+    tfs.path = path;
+    auto ret = clock_gettime(CLOCK_REALTIME, &time);
+    if (ret == -1)
+        return -errno;
+    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.gid = getgid();
+    tfs.uid = getuid();
+    tfs.nlink = 1;
+    tfs.size = 0;
+    if (createFile(tfs) < 0)
+        return -EACCES;
+    return 0;
 }
 
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                         off_t offset, struct fuse_file_info *fi)
-{
+                            off_t offset, struct fuse_file_info *fi) {
 
     std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     if (strcmp(path, "/") != 0)
@@ -88,21 +109,52 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 
 long long TerarkFuseOper::getRid(const std::string &path) {
 
-    valvec<llong > ridvec;
+    valvec<llong> ridvec;
     fstring key(path);
-    ctx->indexSearchExact(path_idx_id,key,&ridvec);
 
-    return ridvec.size() == 1 ? ridvec[0]: -1;
+    ctx->indexSearchExact(path_idx_id, key, &ridvec);
+    return ridvec.size() == 1 ? ridvec[0] : -1;
 }
 
-uint32_t TerarkFuseOper::getMode(const llong rid) {
-    if (rid < 0)
-        return -1;
-    valvec<byte> modeVal;
+bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf) {
 
-    static const Schema &rowSchema = tab->rowSchema();
+    TFS tfs;
+    valvec<byte> cgData;
 
-
-    return 0;
+    ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
+    if (cgData.size() == 0) {
+        return false;
+    }
+    tfs.decode(cgData);
+    stbuf = getStat(tfs, stbuf);
+    return true;
 }
+
+struct stat &TerarkFuseOper::getStat(terark::TFS &tfs, struct stat &st) {
+
+    st.st_mode = tfs.mode;
+    st.st_atim.tv_sec = tfs.atime / ns_per_sec;
+    st.st_atim.tv_nsec = tfs.atime % ns_per_sec;
+    st.st_ctim.tv_sec = tfs.ctime / ns_per_sec;
+    st.st_ctim.tv_nsec = tfs.ctime % ns_per_sec;
+    st.st_mtim.tv_sec = tfs.mtime / ns_per_sec;
+    st.st_mtim.tv_nsec = tfs.mtime % ns_per_sec;
+    st.st_nlink = tfs.nlink;
+    st.st_blocks = tfs.blocks;
+    st.st_gid = tfs.gid;
+    st.st_uid = tfs.uid;
+    st.st_size = tfs.size;
+    st.st_ino = tfs.ino;
+    return st;
+}
+
+terark::llong TerarkFuseOper::createFile(terark::TFS &tfs) {
+
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+
+    rowBuilder.rewind();
+    rowBuilder << tfs;
+    return ctx->insertRow(rowBuilder.written());
+}
+
 

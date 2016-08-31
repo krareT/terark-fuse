@@ -47,11 +47,13 @@ void sig_fuc(int sig) {
 
 int main(int argc, char **argv) {
 
-    signal(SIGINT, sig_fuc);
     const char *dbpath = NULL;
     std::string flag = "-terark_core=";
     std::vector<char *> argvec;
+    struct fuse_operations terark_fuse_oper;
+    std::unique_ptr<char *> fuse_argv;
 
+    signal(SIGINT, sig_fuc);
     for (int i = 0; i < argc; i++) {
         if (strncmp(flag.c_str(), argv[i], flag.size()) == 0) {
             dbpath = argv[i] + flag.size();
@@ -64,17 +66,11 @@ int main(int argc, char **argv) {
         exit(1);
     }
     std::cout << dbpath << std::endl;
-
     g_TFO = std::make_shared<TerarkFuseOper>(dbpath);
-
-    struct fuse_operations terark_fuse_oper;
     fuse_init(terark_fuse_oper, *g_TFO);
-
-    std::unique_ptr<char *> fuse_argv;
     fuse_argv = std::unique_ptr<char *>(new char *[argvec.size()]);
     for (int i = 0; i < argvec.size(); i++) {
         fuse_argv.get()[i] = argvec[i];
     }
-
     return fuse_main(argvec.size(), fuse_argv.get(), &terark_fuse_oper, NULL);
 }

@@ -40,11 +40,12 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
     memset(stbuf, 0, sizeof(struct stat));
 
-    if (strcmp(path, "/") == 0) {
+    if (strcmp(path, "/") == 0 || ifDict(path)) {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
         return 0;
     }
+
     llong rid = getRid(path);
     std::cout << "TerarkFuseOper::getattr rid:" << rid << std::endl;
     if (rid < 0) {
@@ -58,13 +59,13 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::open:" << path << std::endl;
     std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
+    //O_DIRECTORY
     llong rid;
     if (false == ctx->indexKeyExists(path_idx_id, path)) {
         return -ENOENT;
     }
     std::cout << "TerarkFuseOper::open: file exist" << path << std::endl;
     return 0;
-
 }
 
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
@@ -135,7 +136,6 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     }
     tfs.content.replace(offset, size, buf, size);
     tfs.size = tfs.content.size();
-
     timespec time;
     auto ret = clock_gettime(CLOCK_REALTIME, &time);
     if (ret == -1)
@@ -321,6 +321,20 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
         ss << " S_ISVTX,";
 
     return ss.str();
+}
+
+bool TerarkFuseOper::ifDict(const char *path) {
+
+    if (NULL == path)
+        return false;
+    auto len = strlen(path);
+    if (path[len - 1] == '/') {
+        return true;
+    }
+    //search in terark to judge if this is a dict
+    std::cout << "TerarkFuseOper::ifDict:" << path << std::endl;
+
+    return !ctx->indexKeyExists(path_idx_id, path);
 }
 
 

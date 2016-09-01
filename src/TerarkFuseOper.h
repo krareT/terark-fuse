@@ -36,6 +36,8 @@ private:
     std::string printFlag(int flag);
 
     std::string printMode(mode_t mode);
+
+    bool ifDict(const char *path);
 public:
     static uint64_t ns_per_sec;
     TerarkFuseOper(const char *dbpath) {
@@ -95,7 +97,7 @@ public:
 
     int (*utime)(const char *, struct utimbuf *);
 
-
+    //not support flag:O_ASYNC,O_CLOEXEC,O_DIRECT
     int open(const char *, struct fuse_file_info *);
 
 

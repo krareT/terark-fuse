@@ -70,8 +70,6 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
     std::cout << "TerarkFuseOper::open:" << path << std::endl;
     std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
 
-    std::string path_str(path);
-
     if (false == ifExist(path)) {
         return -ENOENT;
     }
@@ -83,12 +81,11 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
 
     std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
-    if (ctx->indexKeyExists(path_idx_id, path) == false)
+    if (ifExist(path))
         return -ENOENT;
 
     auto rid = getRid(path);
-    if (rid < 0)
-        return -ENOENT;
+    assert(rid >= 0);
     valvec<byte> row;
     ctx->selectOneColumn(rid, tab->getColumnId("content"), &row);
 
@@ -99,8 +96,11 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     } else {
         size = 0;
     }
+
     timespec time;
-    clock_gettime(CLOCK_REALTIME, &time);
+    auto ret = clock_gettime(CLOCK_REALTIME, &time);
+    if (ret < 0)
+        return -errno;
     uint64_t nsec = time.tv_sec * ns_per_sec + time.tv_nsec;
     fstring new_atime = terark::db::Schema::fstringOf(&nsec);
     tab->updateColumn(rid, "atime", new_atime);
@@ -129,7 +129,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuseOper::write:" << path << std::endl;
-    std::cout << "TerarkFuseOper::write:offset:" << offset << std::endl;
+    std::cout << "TerarkFuseOper::write:flag:" << printFlag(ffi->flags) << std::endl;
+
     valvec<byte> row_data;
     //check if exist
     if (ctx->indexKeyExists(path_idx_id, path) == false)
@@ -144,6 +145,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     if (offset + size > tfs.content.size()) {
         tfs.content.resize(offset + size);
     }
+
     tfs.content.replace(offset, size, buf, size);
     tfs.size = tfs.content.size();
     timespec time;
@@ -165,10 +167,21 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 long long TerarkFuseOper::getRid(const std::string &path) {
 
     valvec<llong> ridvec;
-    fstring key(path);
 
-    ctx->indexSearchExact(path_idx_id, key, &ridvec);
-    return ridvec.size() == 1 ? ridvec[0] : -1;
+    ctx->indexSearchExact(path_idx_id, path, &ridvec);
+    if (ridvec.size() == 1)
+        return ridvec[0];
+
+    if (path.back() == '/') {
+        ctx->indexSearchExact(path_idx_id, path.substr(0, path.size() - 1), &ridvec);
+        if (ridvec.size() == 1)
+            return ridvec[0];
+    } else {
+        ctx->indexSearchExact(path_idx_id, path + "/", &ridvec);
+        if (ridvec.size() == 1)
+            return ridvec[0];
+    }
+    return -1;
 }
 
 bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf) {
@@ -343,6 +356,11 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
     } else {
         return ctx->indexKeyExists(path_idx_id, path + "/");
     }
+}
+
+bool TerarkFuseOper::ifDict(const std::string &path) {
+
+    return false;
 }
 
 

@@ -15,6 +15,7 @@
 #include <terark/db/db_conf.hpp>
 #include "tfs.hpp"
 
+
 class TerarkFuseOper {
 private:
     terark::db::CompositeTablePtr tab;
@@ -37,19 +38,13 @@ private:
 
     std::string printMode(mode_t mode);
 
-    bool ifDict(const char *path);
+    bool ifDict(const std::string &path);
+
+    bool ifDictExist(const std::string &path);
 public:
     static uint64_t ns_per_sec;
-    TerarkFuseOper(const char *dbpath) {
 
-        tab = terark::db::CompositeTable::open(dbpath);
-        assert(tab != NULL);
-        path_idx_id = tab->getIndexId("path");
-        assert(path_idx_id < tab->getIndexNum());
-        ctx = tab->createDbContext();
-        file_stat_cg_id = tab->getColgroupId("file_stat");
-        assert(file_stat_cg_id < tab->getColgroupNum());
-    }
+    TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
         tab->safeStopAndWaitForCompress();

@@ -4,16 +4,31 @@
 
 #include "TerarkFuseOper.h"
 
-const char *hello_path = "/hello";
-const char *hello_str = "Hello Terark\n";
 uint64_t TerarkFuseOper::ns_per_sec = 1000000000;
 using namespace terark;
 using namespace db;
 
+TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
+
+    tab = terark::db::CompositeTable::open(dbpath);
+    assert(tab != NULL);
+
+    path_idx_id = tab->getIndexId("path");
+    assert(path_idx_id < tab->getIndexNum());
+
+    ctx = tab->createDbContext();
+    file_stat_cg_id = tab->getColgroupId("file_stat");
+    assert(file_stat_cg_id < tab->getColgroupNum());
+
+    //create root dict : "/"
+    if (false == ctx->indexKeyExists(path_idx_id, "/")) {
+        auto ret = this->create("/", S_IFDIR | 0666, nullptr);
+        assert(ret == 0);
+    }
+}
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
-    //check if exist
     std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
     TFS tfs;
     struct timespec time;
@@ -35,23 +50,15 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
-    int ret = 0;
+
     std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
 
     memset(stbuf, 0, sizeof(struct stat));
-
-    if (strcmp(path, "/") == 0 || ifDict(path)) {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2;
-        return 0;
-    }
-
-    llong rid = getRid(path);
-    std::cout << "TerarkFuseOper::getattr rid:" << rid << std::endl;
-    if (rid < 0) {
+    if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
-    }
+    auto rid = getRid(path);
     getFileMetainfo(rid, *stbuf);
+
     return 0;
 }
 
@@ -111,7 +118,6 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-    filler(buf, hello_path + 1, NULL, 0);
 
     return 0;
 }
@@ -323,18 +329,13 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
     return ss.str();
 }
 
-bool TerarkFuseOper::ifDict(const char *path) {
+bool TerarkFuseOper::ifDict(const std::string &path) {
 
-    if (NULL == path)
-        return false;
-    auto len = strlen(path);
-    if (path[len - 1] == '/') {
-        return true;
-    }
-    //search in terark to judge if this is a dict
-    std::cout << "TerarkFuseOper::ifDict:" << path << std::endl;
 
-    return !ctx->indexKeyExists(path_idx_id, path);
+}
+
+bool TerarkFuseOper::ifDictExist(const std::string &path) {
+
 }
 
 

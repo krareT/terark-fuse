@@ -79,6 +79,7 @@ int main(int argc, char **argv) {
     g_TFO = std::make_shared<TerarkFuseOper>(dbpath);
     fuse_init(terark_fuse_oper, *g_TFO);
     fuse_argv = std::unique_ptr<char *>(new char *[argvec.size()]);
+
     for (int i = 0; i < argvec.size(); i++) {
         fuse_argv.get()[i] = argvec[i];
     }

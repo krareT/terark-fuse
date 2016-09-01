@@ -70,8 +70,10 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::read:" << path << std::endl;
+    //check if exist
     if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
+
     auto rid = getRid(path);
     if (rid < 0)
         return -ENOENT;
@@ -116,17 +118,24 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuseOper::write:" << path << std::endl;
-    valvec<byte> cgData;
+    std::cout << "TerarkFuseOper::write:offset:" << offset << std::endl;
+    valvec<byte> row_data;
+    //check if exist
     if (ctx->indexKeyExists(path_idx_id, path) == false)
         return -ENOENT;
+
     auto rid = getRid(path);
-    TFS_Colgroup_file_stat tfs_fs;
-    ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
-    tfs_fs.decode(cgData);
-    TFS tfs(tfs_fs);
+    ctx->getValue(rid, &row_data);
+
+    TFS tfs;
+    tfs.decode(row_data);
     tfs.path = path;
-    tfs.content.assign(buf, size);
-    tfs.size = size;
+    if (offset + size > tfs.content.size()) {
+        tfs.content.resize(offset + size);
+    }
+    tfs.content.replace(offset, size, buf, size);
+    tfs.size = tfs.content.size();
+
     timespec time;
     auto ret = clock_gettime(CLOCK_REALTIME, &time);
     if (ret == -1)

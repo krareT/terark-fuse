@@ -41,6 +41,8 @@ private:
     bool ifDict(const std::string &path);
 
     bool ifDictExist(const std::string &path);
+
+    bool ifExist(const std::string &path);
 public:
     static uint64_t ns_per_sec;
 

@@ -26,8 +26,11 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
         assert(ret == 0);
     }
 }
+
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
+    if (ifExist(path))
+        return -EEXIST;
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
     std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
     TFS tfs;
@@ -66,12 +69,13 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     std::cout << "TerarkFuseOper::open:" << path << std::endl;
     std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
-    //O_DIRECTORY
-    llong rid;
-    if (false == ctx->indexKeyExists(path_idx_id, path)) {
+
+    std::string path_str(path);
+
+    if (false == ifExist(path)) {
         return -ENOENT;
     }
-    std::cout << "TerarkFuseOper::open: file exist" << path << std::endl;
+
     return 0;
 }
 
@@ -215,7 +219,7 @@ void TerarkFuseOper::printStat(struct stat &st) {
     printf("print stat:\n");
     std::cout << "gid:" << st.st_gid << std::endl;
     std::cout << "uid:" << st.st_uid << std::endl;
-    std::cout << "mod:" << st.st_mode << std::endl;
+    std::cout << "mod:" << printMode(st.st_mode) << std::endl;
     std::cout << "nlk:" << st.st_nlink << std::endl;
     std::cout << "siz:" << st.st_size << std::endl;
     std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec) << std::endl;
@@ -329,13 +333,16 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
     return ss.str();
 }
 
-bool TerarkFuseOper::ifDict(const std::string &path) {
+bool TerarkFuseOper::ifExist(const std::string &path) {
 
-
-}
-
-bool TerarkFuseOper::ifDictExist(const std::string &path) {
-
+    uint8_t ret = 0;
+    if (ctx->indexKeyExists(path_idx_id, path))
+        return true;
+    if (path.back() == '/') {
+        return ctx->indexKeyExists(path_idx_id, path.substr(0, path.size() - 1));
+    } else {
+        return ctx->indexKeyExists(path_idx_id, path + "/");
+    }
 }
 
 

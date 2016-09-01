@@ -67,7 +67,7 @@ public:
 
     int (*mknod)(const char *, mode_t, dev_t);
 
-    int (*mkdir)(const char *, mode_t);
+    int mkdir(const char *, mode_t);
 
 
     int (*unlink)(const char *);

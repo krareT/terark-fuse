@@ -38,6 +38,12 @@ int terark_write(const char *path, const char *buf, size_t size, off_t offset, s
 
     return g_TFO->write(path, buf, size, offset, ffi);
 }
+
+int terark_mkdir(const char *path, mode_t mode) {
+
+    return g_TFO->mkdir(path, mode);
+}
+
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));

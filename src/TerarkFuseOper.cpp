@@ -37,16 +37,7 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
     struct timespec time;
     tfs.mode = mod;
     tfs.path = path;
-    auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    if (ret == -1)
-        return -errno;
-    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.gid = getgid();
-    tfs.uid = getuid();
-    tfs.nlink = 1;
-    tfs.size = 0;
+
     if (createFile(tfs) < 0)
         return -EACCES;
     return 0;
@@ -81,7 +72,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
 
     std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
-    if (ifExist(path))
+    if (!ifExist(path))
         return -ENOENT;
 
     auto rid = getRid(path);
@@ -219,7 +210,17 @@ struct stat &TerarkFuseOper::getStat(terark::TFS_Colgroup_file_stat &tfs, struct
 }
 
 terark::llong TerarkFuseOper::createFile(terark::TFS &tfs) {
-
+    struct timespec time;
+    auto ret = clock_gettime(CLOCK_REALTIME, &time);
+    if (ret == -1)
+        return -errno;
+    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.gid = getgid();
+    tfs.uid = getuid();
+    tfs.nlink = 1;
+    tfs.size = 0;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
 
     rowBuilder.rewind();
@@ -361,6 +362,25 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
 bool TerarkFuseOper::ifDict(const std::string &path) {
 
     return false;
+}
+
+int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
+
+    if (ifExist(path))
+        return -EEXIST;
+    std::cout << "TerarkFuseOper::create:" << path << std::endl;
+    std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
+    TFS tfs;
+
+    tfs.mode = mod;
+    tfs.path = path;
+    if (tfs.path.back() != '/') {
+        tfs.path.push_back('/');
+    }
+
+    if (createFile(tfs) < 0)
+        return -EACCES;
+    return 0;
 }
 
 

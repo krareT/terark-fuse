@@ -14,7 +14,7 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
     //check if exist
-
+    std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
     TFS tfs;
     struct timespec time;
     tfs.mode = mod;
@@ -60,11 +60,7 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
     std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
     llong rid;
     if (false == ctx->indexKeyExists(path_idx_id, path)) {
-        if (ffo->flags & O_CREAT != 0) {
-            return this->create(path, ffo->flags, ffo);
-        } else {
-            return -ENOENT;
-        }
+        return -ENOENT;
     }
     std::cout << "TerarkFuseOper::open: file exist" << path << std::endl;
     return 0;
@@ -212,10 +208,11 @@ void TerarkFuseOper::printStat(struct stat &st) {
     std::cout << "atm:" << ctime(&st.st_atim.tv_sec) << std::endl;
 }
 
-std::string TerarkFuseOper::printFlag(uint64_t flag) {
+std::string TerarkFuseOper::printFlag(int flag) {
 
     std::stringstream ss;
-    ss << "open flag:";
+    ss << "open flag:" << flag << std::endl;
+
     if (flag & O_APPEND)
         ss << "O_APPEND,";
 
@@ -261,9 +258,60 @@ std::string TerarkFuseOper::printFlag(uint64_t flag) {
         ss << " O_SYNC,";
     if (flag & O_TRUNC)
         ss << " O_TRUNC,";
+    if (flag & O_RDWR)
+        ss << " O_RDWR,";
+    if (flag & O_RDONLY)
+        ss << " O_RDONLY,";
+    if (flag & O_WRONLY)
+        ss << " O_WRONLY,";
+
     ss << std::endl;
     return ss.str();
 
+}
+
+std::string TerarkFuseOper::printMode(mode_t mode) {
+    std::stringstream ss;
+    ss << "mode:" << mode << std::endl;
+
+    if ((mode & S_IRWXU) == S_IRWXU)
+        ss << " S_IRWXU,";
+    if ((mode & S_IRUSR) == S_IRUSR)
+        ss << " S_IRUSR,";
+
+    if ((mode & S_IWUSR) == S_IWUSR)
+        ss << " S_IWUSR,";
+    if ((mode & S_IXUSR) == S_IXUSR)
+        ss << " S_IXUSR,";
+
+    if ((mode & S_IRWXG) == S_IRWXG)
+        ss << " S_IRWXG,";
+    if ((mode & S_IRGRP) == S_IRGRP)
+        ss << " S_IRGRP,";
+
+    if ((mode & S_IWGRP) == S_IWGRP)
+        ss << " S_IWGRP,";
+    if ((mode & S_IXGRP) == S_IXGRP)
+        ss << " S_IXGRP,";
+
+    if ((mode & S_IRWXO) == S_IRWXO)
+        ss << " S_IRWXO,";
+    if ((mode & S_IROTH) == S_IROTH)
+        ss << " S_IROTH,";
+
+    if ((mode & S_IWOTH) == S_IWOTH)
+        ss << " S_IWOTH,";
+    if ((mode & S_IXOTH) == S_IXOTH)
+        ss << " S_IXOTH,";
+
+    if ((mode & S_ISUID) == S_ISUID)
+        ss << " S_ISUID,";
+    if ((mode & S_ISGID) == S_ISGID)
+        ss << " S_ISGID,";
+    if ((mode & S_ISVTX) == S_ISVTX)
+        ss << " S_ISVTX,";
+
+    return ss.str();
 }
 
 

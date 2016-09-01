@@ -33,7 +33,9 @@ private:
 
     void printStat(struct stat &st);
 
-    std::string printFlag(uint64_t flag);
+    std::string printFlag(int flag);
+
+    std::string printMode(mode_t mode);
 public:
     static uint64_t ns_per_sec;
     TerarkFuseOper(const char *dbpath) {

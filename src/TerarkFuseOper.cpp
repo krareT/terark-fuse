@@ -235,9 +235,9 @@ void TerarkFuseOper::printStat(struct stat &st) {
     std::cout << "mod:" << printMode(st.st_mode) << std::endl;
     std::cout << "nlk:" << st.st_nlink << std::endl;
     std::cout << "siz:" << st.st_size << std::endl;
-    std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec) << std::endl;
-    std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec) << std::endl;
-    std::cout << "atm:" << ctime(&st.st_atim.tv_sec) << std::endl;
+    std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec);
+    std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec);
+    std::cout << "atm:" << ctime(&st.st_atim.tv_sec);
 }
 
 std::string TerarkFuseOper::printFlag(int flag) {

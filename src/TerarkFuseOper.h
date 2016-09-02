@@ -30,7 +30,7 @@ private:
 
     struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
 
-    terark::llong createFile(terark::TFS &tfs);
+    terark::llong createFile(const std::string &path, const mode_t &mod);
 
     void printStat(struct stat &st);
 

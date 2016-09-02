@@ -33,12 +33,8 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
         return -EEXIST;
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
     std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
-    TFS tfs;
-    struct timespec time;
-    tfs.mode = mod;
-    tfs.path = path;
 
-    if (createFile(tfs) < 0)
+    if (createFile(path, mod) < 0)
         return -EACCES;
     return 0;
 }
@@ -209,11 +205,14 @@ struct stat &TerarkFuseOper::getStat(terark::TFS_Colgroup_file_stat &tfs, struct
     return st;
 }
 
-terark::llong TerarkFuseOper::createFile(terark::TFS &tfs) {
+terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &mod) {
     struct timespec time;
     auto ret = clock_gettime(CLOCK_REALTIME, &time);
     if (ret == -1)
         return -errno;
+    TFS tfs;
+    tfs.path = path;
+    tfs.mode = mod;
     tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
@@ -370,15 +369,13 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
         return -EEXIST;
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
     std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
-    TFS tfs;
 
-    tfs.mode = mod;
-    tfs.path = path;
-    if (tfs.path.back() != '/') {
-        tfs.path.push_back('/');
+    std::string path_str(path);
+    if (path_str.back() != '/') {
+        path_str.push_back('/');
     }
 
-    if (createFile(tfs) < 0)
+    if (createFile(path, mod) < 0)
         return -EACCES;
     return 0;
 }

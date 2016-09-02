@@ -43,7 +43,6 @@ int terark_mkdir(const char *path, mode_t mode) {
 
     return g_TFO->mkdir(path, mode);
 }
-
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -53,6 +52,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.readdir = terark_readdir;
     fo.create = terark_creat;
     fo.write = terark_write;
+    fo.mkdir = terark_mkdir;
 }
 
 void sig_fuc(int sig) {

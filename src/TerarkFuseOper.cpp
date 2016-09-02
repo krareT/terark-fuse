@@ -212,7 +212,7 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
         return -errno;
     TFS tfs;
     tfs.path = path;
-    tfs.mode = mod;
+    tfs.mode = mod | (path.back() == '/' ? S_IFDIR : S_IFREG);
     tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
@@ -360,15 +360,22 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
 
 bool TerarkFuseOper::ifDict(const std::string &path) {
 
-    return false;
+    auto rid = getRid(path);
+    valvec<byte> row;
+    ctx->selectOneColumn(rid, tab->getColumnId("path"), &row);
+
+    fstring p(row.data());
+
+    //judge if the last char in p is '/'
+    return p.c_str()[p.size() - 1] == '/';
 }
 
 int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
 
     if (ifExist(path))
         return -EEXIST;
-    std::cout << "TerarkFuseOper::create:" << path << std::endl;
-    std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
+    std::cout << "TerarkFuseOper::mkdir:" << path << std::endl;
+    std::cout << "TerarkFuseOper::mkdir:" << printMode(mod) << std::endl;
 
     std::string path_str(path);
     if (path_str.back() != '/') {

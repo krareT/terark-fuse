@@ -22,7 +22,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
 
     //create root dict : "/"
     if (false == ctx->indexKeyExists(path_idx_id, "/")) {
-        auto ret = this->create("/", S_IFDIR | 0666, nullptr);
+        auto ret = this->createFile("/", S_IFDIR | 0666);
         assert(ret == 0);
     }
 }
@@ -348,9 +348,11 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
 
 bool TerarkFuseOper::ifExist(const std::string &path) {
 
+    assert(path != "/");
     uint8_t ret = 0;
     if (ctx->indexKeyExists(path_idx_id, path))
         return true;
+
     if (path.back() == '/') {
         return ctx->indexKeyExists(path_idx_id, path.substr(0, path.size() - 1));
     } else {

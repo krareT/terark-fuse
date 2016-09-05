@@ -3,7 +3,6 @@
 
 #include <fuse.h>
 #include <iostream>
-#include <bits/signum.h>
 #include <signal.h>
 #include "TerarkFuseOper.h"
 
@@ -43,6 +42,10 @@ int terark_mkdir(const char *path, mode_t mode) {
 
     return g_TFO->mkdir(path, mode);
 }
+int terark_opendir(const char *path, struct fuse_file_info *ffi){
+
+    return g_TFO->opendir(path,ffi);
+}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -53,6 +56,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.create = terark_creat;
     fo.write = terark_write;
     fo.mkdir = terark_mkdir;
+    fo.opendir = terark_opendir;
 }
 
 void sig_fuc(int sig) {

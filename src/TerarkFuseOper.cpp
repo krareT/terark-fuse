@@ -394,4 +394,18 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
     return 0;
 }
 
+int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
+
+    if (!ifExist(path))
+        return -ENOENT;
+    auto rid = getRid(path);
+    if (rid < 0)
+        return -ENOENT;
+    struct stat st;
+    getFileMetainfo(rid,st);
+    if ( !S_ISDIR(st.st_mode))
+        return -ENOTDIR;
+    return 0;
+}
+
 

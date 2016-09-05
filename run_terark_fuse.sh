@@ -13,4 +13,5 @@ cd ../
 sudo fusermount -u $mnt_dir
 sudo mkdir /temp/terark
 sudo rm -f terark-fuse-core/run.lock
+sudo rm -rf terark-fuse-core/g*
 sudo gdb --args ./build/terark_fuse -d -s -f -o default_permissions -o nonempty $mnt_dir -terark_core=./terark-fuse-core

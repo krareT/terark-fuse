@@ -34,7 +34,7 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
     std::cout << "TerarkFuseOper::create:" << path << std::endl;
     std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
 
-    if (createFile(path, mod) < 0)
+    if (createFile(path, mod | S_IFREG) < 0)
         return -EACCES;
     return 0;
 }
@@ -212,7 +212,7 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
         return -errno;
     TFS tfs;
     tfs.path = path;
-    tfs.mode = mod | (path.back() == '/' ? S_IFDIR : S_IFREG);
+    tfs.mode = mod;
     tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
     tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
@@ -343,6 +343,11 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
     if ((mode & S_ISVTX) == S_ISVTX)
         ss << " S_ISVTX,";
 
+    if ((mode & S_ISREG(mode)))
+        ss << " S_IFREG, ";
+    if ((mode & S_ISDIR(mode)))
+        ss << " S_IFDIR, ";
+
     return ss.str();
 }
 
@@ -384,7 +389,7 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
         path_str.push_back('/');
     }
 
-    if (createFile(path, mod) < 0)
+    if (createFile(path, mod | S_IFDIR) < 0)
         return -EACCES;
     return 0;
 }

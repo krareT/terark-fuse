@@ -103,13 +103,21 @@ int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi) {
 
-    std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
-    if (strcmp(path, "/") != 0)
+    if ( !ifExist(path))
         return -ENOENT;
+    if ( !ifDictExist(path))
+        return -ENOTDIR;
 
+    std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 
+    IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id,ctx.get());
+    valvec<byte> ret_path;
+    llong rid;
+
+    int ret = path_iter->seekLowerBound( path, &rid,&ret_path);
+    assert(ret == 0);
     return 0;
 }
 
@@ -353,8 +361,8 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
 
 bool TerarkFuseOper::ifExist(const std::string &path) {
 
-    assert(path != "/");
-    uint8_t ret = 0;
+    if (path == "/")
+        return true;
     if (ctx->indexKeyExists(path_idx_id, path))
         return true;
 
@@ -407,5 +415,14 @@ int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
         return -ENOTDIR;
     return 0;
 }
+
+bool TerarkFuseOper::ifDictExist(const std::string &path) {
+
+    if (path.back() != '/')
+        return ctx->indexKeyExists(path_idx_id,path + "/");
+    else
+        return ctx->indexKeyExists(path_idx_id,path);
+}
+
 
 

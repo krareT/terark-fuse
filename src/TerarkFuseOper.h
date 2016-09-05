@@ -22,9 +22,8 @@ private:
     terark::db::DbContextPtr ctx;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
-    long long getRid(const std::string &path);
 
-    uint32_t getMode(const terark::llong rid);
+    long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
 
@@ -39,9 +38,7 @@ private:
     std::string printMode(mode_t mode);
 
     bool ifDict(const std::string &path);
-
     bool ifDictExist(const std::string &path);
-
     bool ifExist(const std::string &path);
 
 public:

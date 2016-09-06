@@ -14,7 +14,7 @@
 #include <thread>
 #include <terark/db/db_conf.hpp>
 #include "tfs.hpp"
-
+#include <algorithm>
 
 class TerarkFuseOper {
 private:

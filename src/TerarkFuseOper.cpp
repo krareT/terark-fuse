@@ -111,13 +111,20 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-
     IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id,ctx.get());
     valvec<byte> ret_path;
     llong rid;
 
     int ret = path_iter->seekLowerBound( path, &rid,&ret_path);
     assert(ret == 0);
+    auto path_len = strlen(path);
+    while( path_iter->increment(&rid, &ret_path) && memcmp(ret_path.data(),path,path_len) == 0){
+
+        std::cout << "TerarkFuseOper::readdir:filler:" << fstring(ret_path.data() + strlen(path)).str().c_str() << std::endl;
+        ret_path.push_back(0);
+        filler(buf, reinterpret_cast<char*>(ret_path.data() + path_len),NULL,0);
+    }
+
     return 0;
 }
 

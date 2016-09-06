@@ -46,6 +46,13 @@ int terark_opendir(const char *path, struct fuse_file_info *ffi){
 
     return g_TFO->opendir(path,ffi);
 }
+int terark_unlink(const char *path){
+    return g_TFO->unlink(path);
+}
+int terark_rmdir(const char *path) {
+    return g_TFO->rmdir(path);
+}
+
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -57,6 +64,8 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.write = terark_write;
     fo.mkdir = terark_mkdir;
     fo.opendir = terark_opendir;
+    fo.unlink = terark_unlink;
+    fo.rmdir = terark_rmdir;
 }
 
 void sig_fuc(int sig) {

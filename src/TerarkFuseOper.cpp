@@ -446,5 +446,40 @@ bool TerarkFuseOper::ifDictExist(const std::string &path) {
         return ctx->indexKeyExists(path_idx_id,path + "/");
 }
 
+int TerarkFuseOper::unlink(const char *path) {
+    std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
+    if ( path == "/"){
+        //remove root is unaccess
+        return -EACCES;
+    }
+    if ( !ifExist(path))
+        return -ENOENT;
+    if ( ifDictExist(path))
+        return -EISDIR;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+    ctx->removeRow(rid);
+    return 0;
+}
+
+int TerarkFuseOper::rmdir(const char *path) {
+
+    if ( path == "/"){
+        //remove root is unaccess
+        return -EACCES;
+    }
+    if ( !ifExist(path))
+        return -ENOENT;
+    if ( !ifDictExist(path))
+        return -ENOTDIR;
+    auto rid = getRid(path);
+    if ( rid < 0){
+        return -ENOENT;
+    }
+    ctx->removeRow(rid);
+    return 0;
+}
+
 
 

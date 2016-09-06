@@ -67,10 +67,10 @@ public:
     int mkdir(const char *, mode_t);
 
 
-    int (*unlink)(const char *);
+    int unlink(const char *);
 
 
-    int (*rmdir)(const char *);
+    int rmdir(const char *);
 
 
     int (*symlink)(const char *, const char *);

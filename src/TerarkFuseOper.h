@@ -22,7 +22,7 @@ private:
     terark::db::DbContextPtr ctx;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
-
+    size_t file_mode_id;
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
@@ -40,6 +40,7 @@ private:
     bool ifDict(const std::string &path);
     bool ifDictExist(const std::string &path);
     bool ifExist(const std::string &path);
+    bool updateMode(terark::llong rid, const mode_t &mod);
 
 public:
     static uint64_t ns_per_sec;
@@ -47,11 +48,6 @@ public:
     TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
-        tab->safeStopAndWaitForCompress();
-        tab = NULL;
-    }
-
-    void close() {
         tab->safeStopAndWaitForCompress();
         tab = NULL;
     }
@@ -76,12 +72,12 @@ public:
     int (*symlink)(const char *, const char *);
 
 
-    int (*rename)(const char *, const char *);
+    int rename(const char *, const char *);
 
     int (*link)(const char *, const char *);
 
 
-    int (*chmod)(const char *, mode_t);
+    int chmod(const char *, mode_t);
 
 
     int (*chown)(const char *, uid_t, gid_t);

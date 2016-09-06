@@ -18,6 +18,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
 
     ctx = tab->createDbContext();
     file_stat_cg_id = tab->getColgroupId("file_stat");
+    file_mode_id = tab->getColumnId("mode");
     assert(file_stat_cg_id < tab->getColgroupNum());
 
     //create root dict : "/"
@@ -479,6 +480,24 @@ int TerarkFuseOper::rmdir(const char *path) {
     }
     ctx->removeRow(rid);
     return 0;
+}
+
+int TerarkFuseOper::chmod(const char *path, mode_t mod) {
+
+    if ( ifExist(path))
+        return -ENOENT;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+    updateMode(rid,mod);
+    return 0;
+}
+
+bool TerarkFuseOper::updateMode(terark::llong rid, const mode_t &mod) {
+
+    assert(rid >= 0);
+    tab->updateColumn(rid,file_mode_id,Schema::fstringOf(&mod));
+    return true;
 }
 
 

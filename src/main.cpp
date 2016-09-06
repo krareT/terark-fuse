@@ -52,7 +52,9 @@ int terark_unlink(const char *path){
 int terark_rmdir(const char *path) {
     return g_TFO->rmdir(path);
 }
-
+int terark_chmod(const char *path, mode_t mod) {
+    return g_TFO->chmod(path,mod);
+}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -66,6 +68,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.opendir = terark_opendir;
     fo.unlink = terark_unlink;
     fo.rmdir = terark_rmdir;
+    fo.chmod = terark_chmod;
 }
 
 void sig_fuc(int sig) {

@@ -125,19 +125,29 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     int ret = path_iter->seekLowerBound( path_str, &rid,&ret_path);
     assert(ret == 0);
 
-    while( path_iter->increment(&rid, &ret_path) && memcmp(ret_path.data(),path,path_len) == 0){
+    bool not_increment_flag = false;
+    while( ( not_increment_flag  || path_iter->increment(&rid, &ret_path))
+           && memcmp(ret_path.data(),path,path_len) == 0){
 
         //find first '/' after path
         auto pos = std::find(ret_path.begin() + path_str.size(),ret_path.end(),'/');
         if ( pos == ret_path.end()) {
+            //reg file
             ret_path.push_back(0);
+            filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
+            not_increment_flag = false;
         }
         else {
+            //dir file
             *pos = 0;
+            filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
+            not_increment_flag = true;
+            *pos = '0';
+            ret = path_iter->seekLowerBound(fstring(ret_path.data()),&rid,&ret_path);
+            if ( ret < 0)
+                break;
         }
-        filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
         //std::cout << reinterpret_cast<char*>(ret_path.data() + path_str.size()) << std::endl;
-
     }
 
     return 0;

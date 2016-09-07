@@ -484,6 +484,7 @@ int TerarkFuseOper::rmdir(const char *path) {
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
 
+    std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
     if ( ifExist(path))
         return -ENOENT;
     auto rid = getRid(path);

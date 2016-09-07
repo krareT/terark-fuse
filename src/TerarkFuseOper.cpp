@@ -483,7 +483,7 @@ int TerarkFuseOper::rmdir(const char *path) {
 }
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
-
+    //has bug!!!
     std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
     if ( ifExist(path))
         return -ENOENT;
@@ -499,6 +499,10 @@ bool TerarkFuseOper::updateMode(terark::llong rid, const mode_t &mod) {
     assert(rid >= 0);
     tab->updateColumn(rid,file_mode_id,Schema::fstringOf(&mod));
     return true;
+}
+
+int TerarkFuseOper::rename(const char *, const char *) {
+    return 0;
 }
 
 

@@ -55,6 +55,9 @@ int terark_rmdir(const char *path) {
 int terark_chmod(const char *path, mode_t mod) {
     return g_TFO->chmod(path,mod);
 }
+int terark_rename(const char *, const char *) {
+    return g_TFO->rename();
+}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));

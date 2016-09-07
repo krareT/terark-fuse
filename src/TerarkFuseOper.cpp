@@ -501,7 +501,32 @@ bool TerarkFuseOper::updateMode(terark::llong rid, const mode_t &mod) {
     return true;
 }
 
-int TerarkFuseOper::rename(const char *, const char *) {
+int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
+
+
+    if ( !ifExist(old_path))
+        return -ENOENT;
+    if ( ifExist(new_path))
+        return -EEXIST;
+    if (strcmp(old_path,new_path) == 0)
+        return 0;
+    auto rid = getRid(old_path);
+    if (rid < 0)
+        return -ENOENT;
+
+    TFS tfs;
+    valvec<byte> row;
+    ctx->getValue(rid,&row);
+    tfs.decode(row);
+    tfs.path = new_path;
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+
+    rowBuilder.rewind();
+    rowBuilder << tfs;
+
+    auto ret = ctx->insertRow(rowBuilder.written());
+    if (ret < 0 )
+        return -EACCES;
     return 0;
 }
 

@@ -25,6 +25,9 @@ private:
     size_t file_mode_id;
     size_t file_gid_id;
     size_t file_uid_id;
+    size_t file_atime_id;
+    size_t file_mtime_id;
+    size_t file_ctime_id;
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
@@ -43,7 +46,9 @@ private:
     bool ifDictExist(const std::string &path);
     bool ifExist(const std::string &path);
     bool updateMode(terark::llong rid, const mode_t &mod);
-
+    bool updateCtime(terark::llong rid,uint64_t ctime = time(NULL) * ns_per_sec);
+    bool updateMtime(terark::llong rid,uint64_t mtime = time(NULL) * ns_per_sec);
+    bool updateAtime(terark::llong rid,uint64_t atime = time(NULL) * ns_per_sec);
 public:
     static uint64_t ns_per_sec;
 
@@ -56,7 +61,7 @@ public:
 
     int getattr(const char *, struct stat *);
 
-    int readlink(const char *, char *, size_t);
+    int (*readlink)(const char *, char *, size_t);
 
     int (*mknod)(const char *, mode_t, dev_t);
 
@@ -80,7 +85,7 @@ public:
     int truncate(const char *, off_t);
 
 
-    int (*utime)(const char *, struct utimbuf *);
+    int utime(const char *, struct utimbuf *);
 
     //not support flag:O_ASYNC,O_CLOEXEC,O_DIRECT
     int open(const char *, struct fuse_file_info *);
@@ -150,7 +155,7 @@ public:
                 struct flock *);
 
 
-    int (*utimens)(const char *, const struct timespec tv[2]);
+    int utimens(const char *, const struct timespec tv[2]);
 
 
     int (*bmap)(const char *, size_t blocksize, uint64_t *idx);

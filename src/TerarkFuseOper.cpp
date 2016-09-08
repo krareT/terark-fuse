@@ -21,6 +21,9 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     file_mode_id = tab->getColumnId("mode");
     file_uid_id = tab->getColumnId("uid");
     file_gid_id = tab->getColumnId("gid");
+    file_atime_id = tab->getColumnId("atime");
+    file_ctime_id = tab->getColumnId("ctime");
+    file_mtime_id = tab->getColumnId("mtime");
 
     assert(file_stat_cg_id < tab->getColgroupNum());
     assert(file_mode_id < tab->getColumnNum());
@@ -100,12 +103,6 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     fstring new_atime = terark::db::Schema::fstringOf(&nsec);
     tab->updateColumn(rid, "atime", new_atime);
     return size;
-}
-
-int TerarkFuseOper::readlink(const char *path, char *buf, size_t size) {
-
-    std::cout << "TerarkFuseOper::readlink:" << path << std::endl;
-    return 0;
 }
 
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -584,5 +581,60 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     return 0;
 }
 
+int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
+
+    if ( !ifExist(path))
+        return -ENOENT;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+    uint64_t temp_atime;
+    uint64_t temp_mtime;
+
+    if ( tb == NULL) {
+        temp_mtime = temp_atime = time(NULL);
+    }
+    else{
+        temp_atime = tb->actime;
+        temp_mtime = tb->modtime;
+    }
+    temp_atime *= ns_per_sec;
+    temp_mtime *= ns_per_sec;
+    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&temp_atime));
+
+    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&temp_mtime));
+    return 0;
+}
+
+int TerarkFuseOper::utimens(const char *path, const timespec tv[2]) {
+    if ( !ifExist(path))
+        return -ENOENT;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+    uint64_t temp_atime = tv[0].tv_sec * ns_per_sec + tv[0].tv_nsec;
+    uint64_t temp_mtime = tv[1].tv_sec * ns_per_sec + tv[1].tv_nsec;
+    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&temp_atime));
+    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&temp_mtime));
+    return 0;
+}
+
+bool TerarkFuseOper::updateCtime(terark::llong rid, uint64_t ctime) {
+
+    assert(rid >= 0);
+    tab->updateColumn(rid,file_ctime_id,Schema::fstringOf(&ctime));
+    return false;
+}
+bool TerarkFuseOper::updateMtime(terark::llong rid, uint64_t mtime) {
+
+    assert(rid >= 0);
+    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&mtime));
+    return false;
+}bool TerarkFuseOper::updateAtime(terark::llong rid, uint64_t atime) {
+
+    assert(rid >= 0);
+    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&atime));
+    return false;
+}
 
 

@@ -633,4 +633,12 @@ uint64_t TerarkFuseOper::getTime() {
     return ts.tv_sec * ns_per_sec + ts.tv_nsec;
 }
 
+int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
+    if ( !ifExist(path))
+        return -ENOENT;
+    if ( ifDictExist(path))
+        return -EISDIR;
+    return 0;
+}
+
 

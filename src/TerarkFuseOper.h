@@ -106,7 +106,7 @@ public:
     int (*statfs)(const char *, struct statvfs *);
 
 
-    int (*flush)(const char *, struct fuse_file_info *);
+    int flush(const char *, struct fuse_file_info *);
 
 
     int (*release)(const char *, struct fuse_file_info *);

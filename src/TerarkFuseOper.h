@@ -23,6 +23,8 @@ private:
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
     size_t file_mode_id;
+    size_t file_gid_id;
+    size_t file_uid_id;
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
@@ -54,33 +56,25 @@ public:
 
     int getattr(const char *, struct stat *);
 
-
     int readlink(const char *, char *, size_t);
-
 
     int (*mknod)(const char *, mode_t, dev_t);
 
     int mkdir(const char *, mode_t);
 
-
     int unlink(const char *);
-
 
     int rmdir(const char *);
 
-
     int (*symlink)(const char *, const char *);
-
 
     int rename(const char *, const char *);
 
     int (*link)(const char *, const char *);
 
-
     int chmod(const char *, mode_t);
 
-
-    int (*chown)(const char *, uid_t, gid_t);
+    int chown(const char *, uint64_t , uint64_t);
 
 
     int (*truncate)(const char *, off_t);

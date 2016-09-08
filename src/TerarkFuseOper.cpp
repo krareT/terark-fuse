@@ -19,7 +19,13 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     ctx = tab->createDbContext();
     file_stat_cg_id = tab->getColgroupId("file_stat");
     file_mode_id = tab->getColumnId("mode");
+    file_uid_id = tab->getColumnId("uid");
+    file_gid_id = tab->getColumnId("gid");
+
     assert(file_stat_cg_id < tab->getColgroupNum());
+    assert(file_mode_id < tab->getColumnNum());
+    assert(file_uid_id < tab->getColumnNum());
+    assert(file_gid_id < tab->getColumnNum());
 
     //create root dict : "/"
     if (false == ctx->indexKeyExists(path_idx_id, "/")) {
@@ -527,6 +533,19 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
     auto ret = ctx->insertRow(rowBuilder.written());
     if (ret < 0 )
         return -EACCES;
+    return 0;
+}
+
+int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
+    std::cout << "TerarkFuseOper::chown:" << path << std::endl;
+    if ( !ifExist(path))
+        return -ENOENT;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+
+    tab->updateColumn(rid,file_uid_id,Schema::fstringOf(&owner));
+    tab->updateColumn(rid,file_gid_id,Schema::fstringOf(&group));
     return 0;
 }
 

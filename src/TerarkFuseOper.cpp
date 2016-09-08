@@ -521,6 +521,7 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
     auto ret = ctx->upsertRow(rowBuilder.written());
     if (ret < 0 )
         return -EACCES;
+    ctx->removeRow(rid);
     return 0;
 }
 

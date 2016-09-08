@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #make
-mnt_dir=/tmp/terark
+mnt_dir=./terark_mnt
 
 rm -rf build
 mkdir build
@@ -14,4 +14,4 @@ fusermount -u $mnt_dir
 mkdir $mnt_dir
 rm -f terark-fuse-core/run.lock
 rm -rf terark-fuse-core/g*
-gdb --args ./build/terark_fuse -d -s -f -o default_permissions -o nonempty $mnt_dir -o allow_other -o auto_unmount -terark_core=./terark-fuse-core
+gdb --args ./build/terark_fuse -d -s -f -o nonempty -o allow_other -o auto_unmount $mnt_dir -terark_core=./terark-fuse-core

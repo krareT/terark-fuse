@@ -28,6 +28,7 @@ private:
     size_t file_atime_id;
     size_t file_mtime_id;
     size_t file_ctime_id;
+    size_t file_content_id;
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
@@ -46,9 +47,12 @@ private:
     bool ifDictExist(const std::string &path);
     bool ifExist(const std::string &path);
     bool updateMode(terark::llong rid, const mode_t &mod);
-    bool updateCtime(terark::llong rid,uint64_t ctime = time(NULL) * ns_per_sec);
-    bool updateMtime(terark::llong rid,uint64_t mtime = time(NULL) * ns_per_sec);
-    bool updateAtime(terark::llong rid,uint64_t atime = time(NULL) * ns_per_sec);
+    static uint64_t getTime(void);
+    bool updateCtime(terark::llong rid,uint64_t ctime = getTime());
+    bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
+    bool updateAtime(terark::llong rid,uint64_t atime = getTime());
+    bool updateFileSize(terark::llong rid,uint64_t size);
+
 public:
     static uint64_t ns_per_sec;
 

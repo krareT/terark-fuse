@@ -24,11 +24,17 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     file_atime_id = tab->getColumnId("atime");
     file_ctime_id = tab->getColumnId("ctime");
     file_mtime_id = tab->getColumnId("mtime");
+    file_content_id = tab->getColumnId("content");
+
 
     assert(file_stat_cg_id < tab->getColgroupNum());
     assert(file_mode_id < tab->getColumnNum());
     assert(file_uid_id < tab->getColumnNum());
     assert(file_gid_id < tab->getColumnNum());
+    assert(file_atime_id < tab->getColumnNum());
+    assert(file_ctime_id < tab->getColumnNum());
+    assert(file_mtime_id < tab->getColumnNum());
+    assert(file_content_id < tab->getColumnNum());
 
     //create root dict : "/"
     if (false == ctx->indexKeyExists(path_idx_id, "/")) {
@@ -94,14 +100,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     } else {
         size = 0;
     }
-
-    timespec time;
-    auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    if (ret < 0)
-        return -errno;
-    uint64_t nsec = time.tv_sec * ns_per_sec + time.tv_nsec;
-    fstring new_atime = terark::db::Schema::fstringOf(&nsec);
-    tab->updateColumn(rid, "atime", new_atime);
+    updateAtime(rid);
     return size;
 }
 
@@ -165,24 +164,15 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 
     auto rid = getRid(path);
     ctx->getValue(rid, &row_data);
-
     TFS tfs;
     tfs.decode(row_data);
     tfs.path = path;
     if (offset + size > tfs.content.size()) {
         tfs.content.resize(offset + size);
     }
-
     tfs.content.replace(offset, size, buf, size);
     tfs.size = tfs.content.size();
-    timespec time;
-    auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    if (ret == -1)
-        return -errno;
-    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
-
+    tfs.mtime = getTime();
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     rowBuilder.rewind();
     rowBuilder << tfs;
@@ -265,7 +255,7 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
 
     rowBuilder.rewind();
     rowBuilder << tfs;
-    return ctx->insertRow(rowBuilder.written());
+    return ctx->upsertRow(rowBuilder.written());
 }
 
 void TerarkFuseOper::printStat(struct stat &st) {
@@ -496,6 +486,7 @@ int TerarkFuseOper::chmod(const char *path, mode_t mod) {
     if ( rid < 0)
         return -ENOENT;
     updateMode(rid,mod);
+    updateCtime(rid);
     return 0;
 }
 
@@ -527,7 +518,7 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     rowBuilder.rewind();
     rowBuilder << tfs;
-    auto ret = ctx->insertRow(rowBuilder.written());
+    auto ret = ctx->upsertRow(rowBuilder.written());
     if (ret < 0 )
         return -EACCES;
     return 0;
@@ -543,6 +534,7 @@ int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
 
     tab->updateColumn(rid,file_uid_id,Schema::fstringOf(&owner));
     tab->updateColumn(rid,file_gid_id,Schema::fstringOf(&group));
+    updateCtime(rid);
     return 0;
 }
 
@@ -566,18 +558,15 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
 
     tfs.content.resize(size,'\0');
     tfs.size = tfs.content.size();
-    timespec time;
-    auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    if (ret == -1)
-        return -errno;
-    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
 
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     rowBuilder.rewind();
     rowBuilder << tfs;
-    if (ctx->upsertRow(rowBuilder.written()) < 0)
+    rid = ctx->upsertRow(rowBuilder.written());
+    if (rid < 0)
         return -EACCES;
+    updateCtime(rid);
+    updateMtime(rid);
     return 0;
 }
 
@@ -607,6 +596,7 @@ int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
 }
 
 int TerarkFuseOper::utimens(const char *path, const timespec tv[2]) {
+
     if ( !ifExist(path))
         return -ENOENT;
     auto rid = getRid(path);
@@ -623,18 +613,24 @@ bool TerarkFuseOper::updateCtime(terark::llong rid, uint64_t ctime) {
 
     assert(rid >= 0);
     tab->updateColumn(rid,file_ctime_id,Schema::fstringOf(&ctime));
-    return false;
+    return true;
 }
 bool TerarkFuseOper::updateMtime(terark::llong rid, uint64_t mtime) {
 
     assert(rid >= 0);
     tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&mtime));
-    return false;
+    return true;
 }bool TerarkFuseOper::updateAtime(terark::llong rid, uint64_t atime) {
 
     assert(rid >= 0);
     tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&atime));
-    return false;
+    return true;
+}
+
+uint64_t TerarkFuseOper::getTime() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME,&ts);
+    return ts.tv_sec * ns_per_sec + ts.tv_nsec;
 }
 
 

@@ -470,13 +470,15 @@ int TerarkFuseOper::rmdir(const char *path) {
         //remove root is unaccess
         return -EACCES;
     }
-    if ( !ifExist(path))
+    if ( !ifExist(path)) {
         return -ENOENT;
-    if ( !ifDictExist(path))
+    }
+    if ( !ifDictExist(path)) {
         return -ENOTDIR;
+    }
     auto rid = getRid(path);
     if ( rid < 0){
-        return -ENOENT;
+        return -EACCES;
     }
     ctx->removeRow(rid);
     return 0;
@@ -484,8 +486,8 @@ int TerarkFuseOper::rmdir(const char *path) {
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
     //has bug!!!
-    std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
-    if ( ifExist(path))
+    std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
+    if ( !ifExist(path))
         return -ENOENT;
     auto rid = getRid(path);
     if ( rid < 0)
@@ -520,10 +522,8 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
     tfs.decode(row);
     tfs.path = new_path;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-
     rowBuilder.rewind();
     rowBuilder << tfs;
-
     auto ret = ctx->insertRow(rowBuilder.written());
     if (ret < 0 )
         return -EACCES;

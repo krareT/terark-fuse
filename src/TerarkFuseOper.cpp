@@ -549,5 +549,40 @@ int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
     return 0;
 }
 
+int TerarkFuseOper::truncate(const char *path, off_t size) {
+
+    if ( size < 0)
+        return -EINVAL;
+    if (!ifExist(path))
+        return -ENOENT;
+    if (ifDictExist(path))
+        return -EISDIR;
+    auto rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+    valvec<byte> row_data;
+    ctx->getValue(rid, &row_data);
+
+    TFS tfs;
+    tfs.decode(row_data);
+
+
+    tfs.content.resize(size,'\0');
+    tfs.size = tfs.content.size();
+    timespec time;
+    auto ret = clock_gettime(CLOCK_REALTIME, &time);
+    if (ret == -1)
+        return -errno;
+    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
+
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+    rowBuilder.rewind();
+    rowBuilder << tfs;
+    if (ctx->upsertRow(rowBuilder.written()) < 0)
+        return -EACCES;
+    return 0;
+}
+
 
 

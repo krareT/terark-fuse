@@ -61,6 +61,10 @@ int terark_rename(const char *old_path, const char *new_path) {
 int terark_chown(const char *path, uid_t owner, gid_t group) {
     return g_TFO->chown(path,owner,group);
 }
+
+int terark_truncate(const char *path, off_t size) {
+    return g_TFO->truncate(path,size);
+}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 
     memset(&fo, 0, sizeof(fo));
@@ -77,6 +81,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.chmod = terark_chmod;
     fo.rename = terark_rename;
     fo.chown = terark_chown;
+    fo.truncate = terark_truncate;
 }
 
 void sig_fuc(int sig) {

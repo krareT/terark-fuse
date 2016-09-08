@@ -77,7 +77,7 @@ public:
     int chown(const char *, uint64_t , uint64_t);
 
 
-    int (*truncate)(const char *, off_t);
+    int truncate(const char *, off_t);
 
 
     int (*utime)(const char *, struct utimbuf *);

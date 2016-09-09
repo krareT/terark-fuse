@@ -48,8 +48,8 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 
     if (ifExist(path))
         return -EEXIST;
-    std::cout << "TerarkFuseOper::create:" << path << std::endl;
-    std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
+    //std::cout << "TerarkFuseOper::create:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
 
     if (createFile(path, mod | S_IFREG) < 0)
         return -EACCES;
@@ -58,7 +58,7 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
-    std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
 
     memset(stbuf, 0, sizeof(struct stat));
     if ( !ifExist(path))
@@ -71,8 +71,8 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
-    std::cout << "TerarkFuseOper::open:" << path << std::endl;
-    std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
+    //std::cout << "TerarkFuseOper::open:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
 
     if (false == ifExist(path)) {
         return -ENOENT;
@@ -83,7 +83,7 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
 
-    std::cout << "TerarkFuseOper::read:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
@@ -111,7 +111,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         return -ENOENT;
     if ( !ifDictExist(path))
         return -ENOTDIR;
-    std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
     IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id,ctx.get());
@@ -154,8 +154,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
-    std::cout << "TerarkFuseOper::write:" << path << std::endl;
-    std::cout << "TerarkFuseOper::write:flag:" << printFlag(ffi->flags) << std::endl;
+    //std::cout << "TerarkFuseOper::write:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::write:flag:" << printFlag(ffi->flags) << std::endl;
 
     valvec<byte> row_data;
     //check if exist
@@ -186,13 +186,13 @@ long long TerarkFuseOper::getRid(const std::string &path) {
     valvec<llong> ridvec;
 
     std::string path_str = path;
-    std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
+    //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
     assert(ridvec.size() <= 1);
     if ( ridvec.size() == 1)
         return ridvec[0];
     path_str.push_back('/');
-    std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
+    //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
     assert(ridvec.size() <= 1);
     if ( ridvec.size() == 1)
@@ -238,7 +238,7 @@ struct stat &TerarkFuseOper::getStat(terark::TFS_Colgroup_file_stat &tfs, struct
 terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &mod) {
     struct timespec time;
     auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    std::cout << "createFile:" << path << std::endl;
+    //std::cout << "createFile:" << path << std::endl;
     if (ret == -1)
         return -errno;
     TFS tfs;
@@ -261,14 +261,14 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
 void TerarkFuseOper::printStat(struct stat &st) {
 
     printf("print stat:\n");
-    std::cout << "gid:" << st.st_gid << std::endl;
-    std::cout << "uid:" << st.st_uid << std::endl;
-    std::cout << "mod:" << printMode(st.st_mode) << std::endl;
-    std::cout << "nlk:" << st.st_nlink << std::endl;
-    std::cout << "siz:" << st.st_size << std::endl;
-    std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec);
-    std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec);
-    std::cout << "atm:" << ctime(&st.st_atim.tv_sec);
+    //std::cout << "gid:" << st.st_gid << std::endl;
+    //std::cout << "uid:" << st.st_uid << std::endl;
+    //std::cout << "mod:" << printMode(st.st_mode) << std::endl;
+    //std::cout << "nlk:" << st.st_nlink << std::endl;
+    //std::cout << "siz:" << st.st_size << std::endl;
+    //std::cout << "ctm:" << ctime(&st.st_ctim.tv_sec);
+    //std::cout << "mtm:" << ctime(&st.st_mtim.tv_sec);
+    //std::cout << "atm:" << ctime(&st.st_atim.tv_sec);
 }
 
 std::string TerarkFuseOper::printFlag(int flag) {
@@ -404,7 +404,7 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
 
     if (ifExist(path))
         return -EEXIST;
-    std::cout << "TerarkFuseOper::mkdir:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::mkdir:" << path << std::endl;
 
 
     std::string path_str(path);
@@ -414,7 +414,7 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
     mod |= S_IFDIR;
     if (createFile(path_str, mod) < 0)
         return -EACCES;
-    std::cout << "TerarkFuseOper::mkdir:" << printMode(mod) << std::endl;
+    //std::cout << "TerarkFuseOper::mkdir:" << printMode(mod) << std::endl;
     return 0;
 }
 
@@ -441,7 +441,7 @@ bool TerarkFuseOper::ifDictExist(const std::string &path) {
 }
 
 int TerarkFuseOper::unlink(const char *path) {
-    std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
     if ( path == "/"){
         //remove root is unaccess
         return -EACCES;
@@ -479,7 +479,7 @@ int TerarkFuseOper::rmdir(const char *path) {
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
     //has bug!!!
-    std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
     if ( !ifExist(path))
         return -ENOENT;
     auto rid = getRid(path);
@@ -526,7 +526,7 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
 }
 
 int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
-    std::cout << "TerarkFuseOper::chown:" << path << std::endl;
+    //std::cout << "TerarkFuseOper::chown:" << path << std::endl;
     if ( !ifExist(path))
         return -ENOENT;
     auto rid = getRid(path);

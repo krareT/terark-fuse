@@ -14,6 +14,7 @@
 #include <thread>
 #include <terark/db/db_conf.hpp>
 #include "tfs.hpp"
+#include "TfsBuffer.h"
 #include <algorithm>
 
 class TerarkFuseOper {
@@ -32,7 +33,7 @@ private:
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
-
+    bool getFileMetainfo(const terark::TFS &, struct stat &stbuf);
     struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
 
     terark::llong createFile(const std::string &path, const mode_t &mod);
@@ -51,7 +52,9 @@ private:
     bool updateCtime(terark::llong rid,uint64_t ctime = getTime());
     bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
     bool updateAtime(terark::llong rid,uint64_t atime = getTime());
-    bool updateFileSize(terark::llong rid,uint64_t size);
+    bool updateAtime(const char *path,uint64_t atime = getTime());
+
+    TfsBuffer tfs_buffer;
 
 public:
     static uint64_t ns_per_sec;
@@ -109,7 +112,7 @@ public:
     int flush(const char *, struct fuse_file_info *);
 
 
-    int (*release)(const char *, struct fuse_file_info *);
+    int release(const char *, struct fuse_file_info *);
 
     int (*fsync)(const char *, int, struct fuse_file_info *);
 
@@ -195,6 +198,5 @@ public:
     int (*fallocate)(const char *, int, off_t, off_t,
                      struct fuse_file_info *);
 };
-
 
 #endif //TERARK_FUSE_TERARKFUSEOPER_H

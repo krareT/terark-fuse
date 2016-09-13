@@ -17,8 +17,10 @@
 #include "TfsBuffer.h"
 #include <algorithm>
 #include <sys/types.h>
+#include <tbb/enumerable_thread_specific.h>
 class TerarkFuseOper {
 private:
+
     terark::db::CompositeTablePtr tab;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
@@ -53,17 +55,19 @@ private:
     bool updateAtime(terark::llong rid,uint64_t atime = getTime());
     bool updateAtime(const char *path,uint64_t atime = getTime());
     TfsBuffer tfs_buffer;
-    tbb::concurrent_unordered_map<pid_t ,terark::db::DbContextPtr> thread_safe_ctx_map;
-    terark::db::DbContextPtr getThreadSafeCtx( );
+
+
+    typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtx;
+    ThreadSafeCtx threadSafeCtx;
+    terark::db::DbContextPtr & getThreadSafeCtx();
 public:
     static uint64_t ns_per_sec;
 
     TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
-        tab->safeStopAndWaitForCompress();
+        tab->safeStopAndWaitForFlush();
         tab = NULL;
-        thread_safe_ctx_map.clear();
     }
 
     int getattr(const char *, struct stat *);

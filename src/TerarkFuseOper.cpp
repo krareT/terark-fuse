@@ -682,12 +682,11 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
     return true;
 }
 
-terark::db::DbContextPtr TerarkFuseOper::getThreadSafeCtx() {
+DbContextPtr & TerarkFuseOper::getThreadSafeCtx() {
 
-    pthread_t tid = pthread_self();
-    if (thread_safe_ctx_map.count(tid))
-        thread_safe_ctx_map[tid] = tab->createDbContext();
-    return thread_safe_ctx_map[tid];
+    if ( threadSafeCtx.local().get() == nullptr)
+        threadSafeCtx.local() = tab->createDbContext();
+    return threadSafeCtx.local();;
 }
 
 

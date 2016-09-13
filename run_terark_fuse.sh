@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #make
-mnt_dir=/tmp/terark_fuse
+mnt_dir=/data/publicdata/wikipedia/experiment/posix_tefuse/
 core_dir=/data/terark_fuse_mount/terark-fuse-core/
 rm -rf build
 mkdir build

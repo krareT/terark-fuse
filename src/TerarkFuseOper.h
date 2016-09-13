@@ -9,18 +9,17 @@
 #include <cstdio>
 #include <fuse.h>
 #include <terark/db/db_table.hpp>
-
+#include <tbb/concurrent_unordered_map.h>
 #include <iostream>
 #include <thread>
 #include <terark/db/db_conf.hpp>
 #include "tfs.hpp"
 #include "TfsBuffer.h"
 #include <algorithm>
-
+#include <sys/types.h>
 class TerarkFuseOper {
 private:
     terark::db::CompositeTablePtr tab;
-    terark::db::DbContextPtr ctx;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
     size_t file_mode_id;
@@ -53,9 +52,9 @@ private:
     bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
     bool updateAtime(terark::llong rid,uint64_t atime = getTime());
     bool updateAtime(const char *path,uint64_t atime = getTime());
-
     TfsBuffer tfs_buffer;
-
+    tbb::concurrent_unordered_map<pid_t ,terark::db::DbContextPtr> thread_safe_ctx_map;
+    terark::db::DbContextPtr getThreadSafeCtx( );
 public:
     static uint64_t ns_per_sec;
 
@@ -64,6 +63,7 @@ public:
     ~TerarkFuseOper() {
         tab->safeStopAndWaitForCompress();
         tab = NULL;
+        thread_safe_ctx_map.clear();
     }
 
     int getattr(const char *, struct stat *);

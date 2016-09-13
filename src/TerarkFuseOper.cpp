@@ -16,7 +16,6 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     path_idx_id = tab->getIndexId("path");
     assert(path_idx_id < tab->getIndexNum());
 
-    ctx = tab->createDbContext();
     file_stat_cg_id = tab->getColgroupId("file_stat");
     file_mode_id = tab->getColumnId("mode");
     file_uid_id = tab->getColumnId("uid");
@@ -37,7 +36,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_content_id < tab->getColumnNum());
 
     //create root dict : "/"
-    if (false == ctx->indexKeyExists(path_idx_id, "/")) {
+    if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 
         auto ret = this->createFile("/", 0666 | S_IFDIR);
         assert(ret == 0);
@@ -91,7 +90,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     const TFS *tfs = tfs_buffer.getTFS(path);
     if (tfs == NULL) {
         auto rid = getRid(path);
-        tfs = tfs_buffer.insert(path, rid, ctx);
+        tfs = tfs_buffer.insert(path, rid, getThreadSafeCtx());
     }
     if (offset < tfs->content.size()) {
         if (offset + size > tfs->content.size())
@@ -114,7 +113,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     //std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-    IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id, ctx.get());
+    IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id, getThreadSafeCtx().get());
     valvec<byte> ret_path;
     llong rid;
     std::string path_str = path;
@@ -163,7 +162,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 
     TFS *tfs = tfs_buffer.getTFS(path);
     if ( tfs == NULL){
-        tfs = tfs_buffer.insert(path,getRid(path),ctx);
+        tfs = tfs_buffer.insert(path,getRid(path),getThreadSafeCtx());
     }
     if (offset + size > tfs->content.size()) {
         tfs->content.resize(offset + size);
@@ -178,6 +177,7 @@ long long TerarkFuseOper::getRid(const std::string &path) {
 
     valvec<llong> ridvec;
 
+    auto ctx = getThreadSafeCtx();
     std::string path_str = path;
     //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
@@ -200,7 +200,7 @@ bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf
     TFS_Colgroup_file_stat tfs_fs;
     valvec<byte> cgData;
 
-    ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
+    getThreadSafeCtx()->selectOneColgroup(rid, file_stat_cg_id, &cgData);
     if (cgData.size() == 0) {
         return false;
     }
@@ -248,7 +248,7 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
 
     rowBuilder.rewind();
     rowBuilder << tfs;
-    return ctx->upsertRow(rowBuilder.written());
+    return getThreadSafeCtx()->upsertRow(rowBuilder.written());
 }
 
 void TerarkFuseOper::printStat(struct stat &st) {
@@ -371,6 +371,7 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
 
     if (path == "/")
         return true;
+    auto ctx = getThreadSafeCtx();
     if (ctx->indexKeyExists(path_idx_id, path))
         return true;
 
@@ -385,7 +386,7 @@ bool TerarkFuseOper::ifDict(const std::string &path) {
 
     auto rid = getRid(path);
     valvec<byte> row;
-    ctx->selectOneColumn(rid, tab->getColumnId("path"), &row);
+    getThreadSafeCtx()->selectOneColumn(rid, tab->getColumnId("path"), &row);
 
     fstring p(row.data());
 
@@ -427,6 +428,7 @@ int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
 
 bool TerarkFuseOper::ifDictExist(const std::string &path) {
 
+    auto ctx = getThreadSafeCtx();
     if (path.back() == '/')
         return ctx->indexKeyExists(path_idx_id, path);
     else
@@ -446,7 +448,7 @@ int TerarkFuseOper::unlink(const char *path) {
     auto rid = getRid(path);
     if (rid < 0)
         return -ENOENT;
-    ctx->removeRow(rid);
+    getThreadSafeCtx()->removeRow(rid);
     return 0;
 }
 
@@ -466,7 +468,7 @@ int TerarkFuseOper::rmdir(const char *path) {
     if (rid < 0) {
         return -EACCES;
     }
-    ctx->removeRow(rid);
+    getThreadSafeCtx()->removeRow(rid);
     return 0;
 }
 
@@ -503,6 +505,7 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
     if (rid < 0)
         return -ENOENT;
 
+    auto ctx = getThreadSafeCtx();
     TFS tfs;
     valvec<byte> row;
     ctx->getValue(rid, &row);
@@ -541,6 +544,7 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     if (ifDictExist(path))
         return -EISDIR;
     auto rid = getRid(path);
+    auto ctx = getThreadSafeCtx();
     if (rid < 0)
         return -ENOENT;
     valvec<byte> row_data;
@@ -655,7 +659,7 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
     rowBuilder.rewind();
     rowBuilder << (*tfs);
-    auto rid = ctx->upsertRow(rowBuilder.written());
+    auto rid = getThreadSafeCtx()->upsertRow(rowBuilder.written());
     if (rid < 0)
         return -EACCES;
     return 0;
@@ -676,6 +680,14 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
     st.st_size = tfs.size;
     st.st_ino = tfs.ino;
     return true;
+}
+
+terark::db::DbContextPtr TerarkFuseOper::getThreadSafeCtx() {
+
+    pthread_t tid = pthread_self();
+    if (thread_safe_ctx_map.count(tid))
+        thread_safe_ctx_map[tid] = tab->createDbContext();
+    return thread_safe_ctx_map[tid];
 }
 
 

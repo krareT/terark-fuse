@@ -9,12 +9,17 @@
 #include <atomic>
 #include <tbb/concurrent_unordered_map.h>
 
-class TfsBuffer {
+struct FileObj : public terark::RefCounter {
+    terark::TFS tfs;
+    uint32_t ref;
+};
+typedef boost::intrusive_ptr<FileObj> FileObjPtr;
+
+class TfsBuffer {.
 private:
-    tbb::concurrent_unordered_map<std::string, std::pair<terark::TFS *, std::atomic<uint32_t> *>> buffer_map;
+    tbb::concurrent_unordered_map<std::string, std::pair<terark::TFS *, std::atomic<uint32_t>*>> buffer_map;
 public:
     terark::TFS *insert(const char *path, const terark::llong &rid, terark::db::DbContextPtr ctx) {
-
         assert(rid >= 0);
         if (buffer_map.count(path) > 0)
             return buffer_map[path].first;
@@ -60,7 +65,6 @@ public:
     TfsBuffer(){
         buffer_map.clear();
     }
-
 };
 
 #endif //TERARK_FUSE_TFSBUFFER_H

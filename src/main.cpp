@@ -47,7 +47,6 @@ int terark_utimens(const char *path, const struct timespec tv[2]) { return g_TFO
 int terark_flush(const char *path, struct fuse_file_info *ffi) { return g_TFO->flush(path,ffi);}
 
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
-
     memset(&fo, 0, sizeof(fo));
     fo.read = terark_read;
     fo.open = terark_open;
@@ -69,13 +68,11 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
 }
 
 void sig_fuc(int sig) {
-
     g_TFO.reset();
     exit(1);
 }
 
 int main(int argc, char **argv) {
-
     const char *dbpath = NULL;
     std::string flag = "-terark_core=";
     std::vector<char *> argvec;
@@ -102,5 +99,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < argvec.size(); i++) {
         fuse_argv.get()[i] = argvec[i];
     }
-    return fuse_main(argvec.size(), fuse_argv.get(), &terark_fuse_oper, NULL);
+    int ret = fuse_main(argvec.size(), fuse_argv.get(), &terark_fuse_oper, NULL);
+    g_TFO.reset();
+    return ret;
 }

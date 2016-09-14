@@ -550,7 +550,7 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
 
     TFS *tfs = getThreadSafeBuf().getTFS(path);
     if (tfs != NULL)
-        tfs->content.resize(size,'0');
+        tfs->content.resize(size,'\0');
     else {
         valvec<byte> row_data;
         ctx->getValue(rid, &row_data);

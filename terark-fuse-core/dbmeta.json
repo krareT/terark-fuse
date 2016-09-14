@@ -5,7 +5,7 @@
         "type": "strzero"
       },
       "content": {
-        "type": "strzero"
+        "type": "binary"
       },
       "mode": {
         "type": "uint32"

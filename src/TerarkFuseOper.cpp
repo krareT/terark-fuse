@@ -62,7 +62,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     memset(stbuf, 0, sizeof(struct stat));
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = tfs_buffer.getTFS(path);
+    TFS *tfs = getThreadSafeBuf().getTFS(path);
     if (tfs == NULL)
         getFileMetainfo(getRid(path), *stbuf);
     else
@@ -87,10 +87,10 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    const TFS *tfs = tfs_buffer.getTFS(path);
+    const TFS *tfs = getThreadSafeBuf().getTFS(path);
     if (tfs == NULL) {
         auto rid = getRid(path);
-        tfs = tfs_buffer.insert(path, rid, getThreadSafeCtx());
+        tfs = getThreadSafeBuf().insert(path, rid, getThreadSafeCtx());
     }
     if (offset < tfs->content.size()) {
         if (offset + size > tfs->content.size())
@@ -160,9 +160,9 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     if (!ifExist(path))
         return -ENOENT;
 
-    TFS *tfs = tfs_buffer.getTFS(path);
+    TFS *tfs = getThreadSafeBuf().getTFS(path);
     if ( tfs == NULL){
-        tfs = tfs_buffer.insert(path,getRid(path),getThreadSafeCtx());
+        tfs = getThreadSafeBuf().insert(path,getRid(path),getThreadSafeCtx());
     }
     if (offset + size > tfs->content.size()) {
         tfs->content.resize(offset + size);
@@ -547,24 +547,27 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     auto ctx = getThreadSafeCtx();
     if (rid < 0)
         return -ENOENT;
-    valvec<byte> row_data;
-    ctx->getValue(rid, &row_data);
 
-    TFS tfs;
-    tfs.decode(row_data);
+    TFS *tfs = getThreadSafeBuf().getTFS(path);
+    if (tfs != NULL)
+        tfs->content.resize(size,'0');
+    else {
+        valvec<byte> row_data;
+        ctx->getValue(rid, &row_data);
+        TFS tfs;
+        tfs.decode(row_data);
+        tfs.content.resize(size, '\0');
+        tfs.size = tfs.content.size();
 
-
-    tfs.content.resize(size, '\0');
-    tfs.size = tfs.content.size();
-
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    rid = ctx->upsertRow(rowBuilder.written());
-    if (rid < 0)
-        return -EACCES;
-    updateCtime(rid);
-    updateMtime(rid);
+        terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+        rowBuilder.rewind();
+        rowBuilder << tfs;
+        rid = ctx->upsertRow(rowBuilder.written());
+        if (rid < 0)
+            return -EACCES;
+        updateCtime(rid);
+        updateMtime(rid);
+    }
     return 0;
 }
 
@@ -643,7 +646,7 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
 
 bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime) {
 
-    TFS *tfs = tfs_buffer.getTFS(path);
+    TFS *tfs = getThreadSafeBuf().getTFS(path);
     if (tfs == NULL)
         return false;
     tfs->atime = atime;
@@ -652,7 +655,7 @@ bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime) {
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
-    auto tfs = tfs_buffer.getTFS(path);
+    TFS *tfs = getThreadSafeBuf().getTFS(path);
     if (tfs == NULL)
         return -EACCES;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
@@ -684,9 +687,14 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
 
 DbContextPtr & TerarkFuseOper::getThreadSafeCtx() {
 
-    if ( threadSafeCtx.local().get() == nullptr)
-        threadSafeCtx.local() = tab->createDbContext();
-    return threadSafeCtx.local();;
+    if ( threadSafeCtxAndBuf.local() == nullptr)
+        threadSafeCtxAndBuf.local() = tab->createDbContext();
+    assert(threadSafeCtxAndBuf.local() != nullptr);
+    return threadSafeCtxAndBuf.local();
+}
+
+TfsBuffer &TerarkFuseOper::getThreadSafeBuf() {
+    return tfsBuffer;
 }
 
 

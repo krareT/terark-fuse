@@ -54,12 +54,13 @@ private:
     bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
     bool updateAtime(terark::llong rid,uint64_t atime = getTime());
     bool updateAtime(const char *path,uint64_t atime = getTime());
-    TfsBuffer tfs_buffer;
 
 
-    typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtx;
-    ThreadSafeCtx threadSafeCtx;
+    TfsBuffer tfsBuffer;
+    typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtxAndBuf;
+    ThreadSafeCtxAndBuf threadSafeCtxAndBuf;
     terark::db::DbContextPtr & getThreadSafeCtx();
+    TfsBuffer &getThreadSafeBuf();
 public:
     static uint64_t ns_per_sec;
 

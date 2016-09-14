@@ -7,10 +7,11 @@
 
 #include "tfs.hpp"
 #include <atomic>
+#include <tbb/concurrent_unordered_map.h>
 
 class TfsBuffer {
 private:
-    std::unordered_map<std::string, std::pair<terark::TFS *, std::atomic<uint32_t> *>> buffer_map;
+    tbb::concurrent_unordered_map<std::string, std::pair<terark::TFS *, std::atomic<uint32_t> *>> buffer_map;
 public:
     terark::TFS *insert(const char *path, const terark::llong &rid, terark::db::DbContextPtr ctx) {
 
@@ -35,7 +36,8 @@ public:
         if (buffer_map[path].second->load(std::memory_order_relaxed) == 0) {
             delete buffer_map[path].first;
             delete buffer_map[path].second;
-            buffer_map.erase(path);
+//            buffer_map.erase(path);
+            buffer_map.unsafe_erase(path);
             return true;
         } else {
             return false;
@@ -47,6 +49,18 @@ public:
 
         return buffer_map[path].first;
     }
+    ~TfsBuffer(){
+
+        for(auto &each : buffer_map){
+            delete each.second.first;
+            delete each.second.second;
+        }
+        buffer_map.clear();
+    }
+    TfsBuffer(){
+        buffer_map.clear();
+    }
+
 };
 
 #endif //TERARK_FUSE_TFSBUFFER_H

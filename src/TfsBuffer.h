@@ -8,40 +8,50 @@
 #include "tfs.hpp"
 #include <atomic>
 #include <tbb/concurrent_unordered_map.h>
+#include <iostream>
 
-struct FileObj : public terark::RefCounter {
-    terark::TFS tfs;
-    uint32_t ref;
+struct FileObj{
+    terark::TFS *tfs;
+    std::atomic<int32_t> ref;
+    FileObj():tfs(nullptr){
+
+        ref.store(0);
+    }
+    ~FileObj(){
+        delete tfs;
+    }
 };
-typedef boost::intrusive_ptr<FileObj> FileObjPtr;
 
-class TfsBuffer {.
+class TfsBuffer {
+
 private:
-    tbb::concurrent_unordered_map<std::string, std::pair<terark::TFS *, std::atomic<uint32_t>*>> buffer_map;
+    tbb::concurrent_unordered_map<std::string, FileObj*> buffer_map;
 public:
-    terark::TFS *insert(const char *path, const terark::llong &rid, terark::db::DbContextPtr ctx) {
+
+    bool insert(const char *path, const terark::llong &rid, terark::db::DbContextPtr ctx) {
         assert(rid >= 0);
         if (buffer_map.count(path) > 0)
-            return buffer_map[path].first;
+            return true;
 
         terark::valvec<terark::byte> row;
-        ctx->getValue(rid, &row);
-        terark::TFS *tfs = new terark::TFS();
 
-        std::atomic<uint32_t> *cnt = new std::atomic<uint32_t>();
-        buffer_map[path] = std::make_pair(tfs, cnt);
-        buffer_map[path].first->decode(row);
-        buffer_map[path].second->store(1, std::memory_order_relaxed);
-        return buffer_map[path].first;
+        terark::TFS *tfs = new terark::TFS;
+        ctx->getValue(rid, &row);
+        tfs->decode(row);
+        buffer_map[path] = new FileObj;
+        buffer_map[path]->tfs = tfs;
+        return true;
     }
 
-    bool erase(const char *path) {
+    bool release(const char *path) {
 
-        buffer_map[path].second--;
-        if (buffer_map[path].second->load(std::memory_order_relaxed) == 0) {
-            delete buffer_map[path].first;
-            delete buffer_map[path].second;
-//            buffer_map.erase(path);
+        if ( buffer_map.count(path) == 0)
+            return false;
+        buffer_map[path]->ref--;
+        std::cout << "release:" << path << ":" << buffer_map[path]->ref <<std::endl;
+        if (buffer_map[path]->ref.load(std::memory_order_relaxed) <= 0) {
+
+            delete buffer_map[path];
             buffer_map.unsafe_erase(path);
             return true;
         } else {
@@ -51,14 +61,18 @@ public:
     terark::TFS *getTFS(const char *path){
         if ( buffer_map.count(path) == 0)
             return NULL;
-
-        return buffer_map[path].first;
+        buffer_map[path]->ref++;
+        return buffer_map[path]->tfs;
+    }
+    terark::TFS *getTempTfs(const char *path){
+        if ( buffer_map.count(path) == 0)
+            return NULL;
+        return buffer_map[path]->tfs;
     }
     ~TfsBuffer(){
 
         for(auto &each : buffer_map){
-            delete each.second.first;
-            delete each.second.second;
+            delete each.second;
         }
         buffer_map.clear();
     }

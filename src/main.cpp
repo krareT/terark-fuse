@@ -46,6 +46,7 @@ int terark_utimens(const char *path, const struct timespec tv[2]) { return g_TFO
 
 int terark_flush(const char *path, struct fuse_file_info *ffi) { return g_TFO->flush(path,ffi);}
 
+int terark_release(const char *path, struct fuse_file_info *ffi){ return g_TFO->release(path,ffi);}
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     memset(&fo, 0, sizeof(fo));
     fo.read = terark_read;
@@ -65,6 +66,7 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.utime = terark_utime;
     fo.utimens = terark_utimens;
     fo.flush = terark_flush;
+    fo.release = terark_release;
 }
 
 void sig_fuc(int sig) {

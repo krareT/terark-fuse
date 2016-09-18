@@ -11,7 +11,7 @@ using namespace db;
 TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
 
     tab = terark::db::CompositeTable::open(dbpath);
-    assert(tab != NULL);
+    assert(tab != nullptr);
 
     path_idx_id = tab->getIndexId("path");
     assert(path_idx_id < tab->getIndexNum());
@@ -50,23 +50,36 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
     //std::cout << "TerarkFuseOper::create:" << path << std::endl;
     //std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
 
-    if (createFile(path, mod | S_IFREG) < 0)
-        return -EACCES;
+    auto rid = createFile(path, mod | S_IFREG);
+    if ( rid < 0)
+        return -EBADF;
+    assert(ffi->fh == 0);
+    tfsBuffer.insert(path,rid,getThreadSafeCtx());
+    TFS *tfs = tfsBuffer.getTFS(path);
+    if (tfs == nullptr)
+        return -EBADF;
+    ffi->fh = reinterpret_cast<uint64_t > (tfs);
     return 0;
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
-    //std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
+    std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
 
     memset(stbuf, 0, sizeof(struct stat));
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if (tfs == NULL)
+    TFS *tfs = tfsBuffer.getTempTfs(path);
+    if (tfs == nullptr) {
+        std::cout << "tfs == nullptr" << std::endl;
         getFileMetainfo(getRid(path), *stbuf);
-    else
-        getFileMetainfo(*tfs,*stbuf);
+
+    }
+    else {
+        std::cout << "tfs != nullptr" << std::endl;
+        getFileMetainfo(*tfs, *stbuf);
+    }
+
     return 0;
 }
 
@@ -78,19 +91,24 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
     if (false == ifExist(path)) {
         return -ENOENT;
     }
+    tfsBuffer.insert(path, getRid(path), getThreadSafeCtx());
+    TFS *tfs = tfsBuffer.getTFS(path);
+    if (tfs == nullptr)
+        return -ENOENT;
+    if (ffo->fh == 0)
+        ffo->fh = reinterpret_cast<uint64_t >(tfs);
     return 0;
 }
 
-int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffo) {
+int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
     //std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    const TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if (tfs == NULL) {
-        auto rid = getRid(path);
-        tfs = getThreadSafeBuf().insert(path, rid, getThreadSafeCtx());
+    const TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    if (tfs == nullptr) {
+        return -ENOENT;
     }
     if (offset < tfs->content.size()) {
         if (offset + size > tfs->content.size())
@@ -99,7 +117,8 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     } else {
         size = 0;
     }
-    updateAtime(path);
+    updateAtime(path, 0, nullptr);
+    std::cout <<"TerarkFuseOper::read:" <<buf << std::endl;
     return size;
 }
 
@@ -111,8 +130,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     if (!ifDictExist(path))
         return -ENOTDIR;
     //std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
-    filler(buf, ".", NULL, 0);
-    filler(buf, "..", NULL, 0);
+    filler(buf, ".", nullptr, 0);
+    filler(buf, "..", nullptr, 0);
     IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id, getThreadSafeCtx().get());
     valvec<byte> ret_path;
     llong rid;
@@ -138,7 +157,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         } else {            //dir file
             ret_path.push_back(0);
         }
-        filler(buf, reinterpret_cast<char *>(ret_path.data() + path_str.size()), NULL, 0);
+        filler(buf, reinterpret_cast<char *>(ret_path.data() + path_str.size()), nullptr, 0);
         if (not_increment_flag) {
             *pos = '0';
             ret = path_iter->seekLowerBound(fstring(ret_path.data()), &rid, &ret_path);
@@ -159,10 +178,9 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-
-    TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if ( tfs == NULL){
-        tfs = getThreadSafeBuf().insert(path,getRid(path),getThreadSafeCtx());
+    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    if (tfs == nullptr) {
+        return -EACCES;
     }
     if (offset + size > tfs->content.size()) {
         tfs->content.resize(offset + size);
@@ -170,6 +188,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     tfs->content.replace(offset, size, buf, size);
     tfs->size = tfs->content.size();
     tfs->mtime = getTime();
+    std::cout << "TerarkFuseOper::write:" << tfs->content << std::endl;
     return size;
 }
 
@@ -238,17 +257,14 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
     tfs.path = path;
     tfs.mode = mod;
     tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
+    tfs.ctime = tfs.atime;
+    tfs.mtime = tfs.atime;
     tfs.gid = getgid();
     tfs.uid = getuid();
     tfs.nlink = 1;
     tfs.size = 0;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    return getThreadSafeCtx()->upsertRow(rowBuilder.written());
+    return getThreadSafeCtx()->upsertRow(tfs.encode(rowBuilder));
 }
 
 void TerarkFuseOper::printStat(struct stat &st) {
@@ -547,10 +563,9 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     auto ctx = getThreadSafeCtx();
     if (rid < 0)
         return -ENOENT;
-
-    TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if (tfs != NULL)
-        tfs->content.resize(size,'\0');
+    TFS *tfs = tfsBuffer.getTFS(path);
+    if (tfs != nullptr)
+        tfs->content.resize(size, '\0');
     else {
         valvec<byte> row_data;
         ctx->getValue(rid, &row_data);
@@ -581,8 +596,8 @@ int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
     uint64_t temp_atime;
     uint64_t temp_mtime;
 
-    if (tb == NULL) {
-        temp_mtime = temp_atime = time(NULL);
+    if (tb == nullptr) {
+        temp_mtime = temp_atime = time(nullptr);
     } else {
         temp_atime = tb->actime;
         temp_mtime = tb->modtime;
@@ -644,10 +659,9 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
     return 0;
 }
 
-bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime) {
+bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime, TFS *tfs) {
 
-    TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if (tfs == NULL)
+    if (tfs == nullptr)
         return false;
     tfs->atime = atime;
     return true;
@@ -655,16 +669,16 @@ bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime) {
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
-    TFS *tfs = getThreadSafeBuf().getTFS(path);
-    if (tfs == NULL)
+    std::cout << "TerarkFuse::release:" << path << std::endl;
+    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    if (tfs == nullptr)
         return -EACCES;
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-
-    rowBuilder.rewind();
-    rowBuilder << (*tfs);
-    auto rid = getThreadSafeCtx()->upsertRow(rowBuilder.written());
+    auto rid = getThreadSafeCtx()->upsertRow(tfs->encode(rowBuilder));
     if (rid < 0)
         return -EACCES;
+    tfsBuffer.release(path);
+    ffi->fh = 0;
     return 0;
 }
 
@@ -685,17 +699,14 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
     return true;
 }
 
-DbContextPtr & TerarkFuseOper::getThreadSafeCtx() {
+DbContextPtr &TerarkFuseOper::getThreadSafeCtx() {
 
-    if ( threadSafeCtxAndBuf.local() == nullptr)
+    if (threadSafeCtxAndBuf.local() == nullptr)
         threadSafeCtxAndBuf.local() = tab->createDbContext();
     assert(threadSafeCtxAndBuf.local() != nullptr);
     return threadSafeCtxAndBuf.local();
 }
 
-TfsBuffer &TerarkFuseOper::getThreadSafeBuf() {
-    return tfsBuffer;
-}
 
 
 

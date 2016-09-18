@@ -106,7 +106,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    const TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
     if (tfs == nullptr) {
         return -ENOENT;
     }
@@ -117,7 +117,8 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     } else {
         size = 0;
     }
-    updateAtime(path, 0, nullptr);
+    //updateAtime(path,getTime(),tfs);
+    tfs->atime = getTime();
     std::cout <<"TerarkFuseOper::read:" <<buf << std::endl;
     return size;
 }
@@ -263,8 +264,8 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
     tfs.uid = getuid();
     tfs.nlink = 1;
     tfs.size = 0;
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    return getThreadSafeCtx()->upsertRow(tfs.encode(rowBuilder));
+
+    return writeToTerark(tfs);
 }
 
 void TerarkFuseOper::printStat(struct stat &st) {
@@ -489,7 +490,7 @@ int TerarkFuseOper::rmdir(const char *path) {
 }
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
-    //has bug!!!
+
     //std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
     if (!ifExist(path))
         return -ENOENT;
@@ -673,8 +674,7 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
     TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
     if (tfs == nullptr)
         return -EACCES;
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    auto rid = getThreadSafeCtx()->upsertRow(tfs->encode(rowBuilder));
+    auto rid = writeToTerark(*tfs);
     if (rid < 0)
         return -EACCES;
     tfsBuffer.release(path);
@@ -705,6 +705,11 @@ DbContextPtr &TerarkFuseOper::getThreadSafeCtx() {
         threadSafeCtxAndBuf.local() = tab->createDbContext();
     assert(threadSafeCtxAndBuf.local() != nullptr);
     return threadSafeCtxAndBuf.local();
+}
+
+terark::llong TerarkFuseOper::writeToTerark(terark::TFS &tfs) {
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+    return getThreadSafeCtx()->upsertRow(tfs.encode(rowBuilder));
 }
 
 

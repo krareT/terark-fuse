@@ -60,6 +60,7 @@ private:
     typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtxAndBuf;
     ThreadSafeCtxAndBuf threadSafeCtxAndBuf;
     terark::db::DbContextPtr & getThreadSafeCtx();
+    terark::llong writeToTerark(terark::TFS &tfs);
 public:
     static uint64_t ns_per_sec;
 

@@ -34,13 +34,15 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_ctime_id < tab->getColumnNum());
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
-
+    ctx = tab->createDbContext();
+    assert(ctx != nullptr);
     //create root dict : "/"
     if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 
         auto ret = this->createFile("/", 0666 | S_IFDIR);
         assert(ret == 0);
     }
+
 }
 
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
@@ -58,7 +60,6 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
     TFS *tfs = tfsBuffer.getTFS(path);
     if (tfs == nullptr)
         return -EBADF;
-    ffi->fh = reinterpret_cast<uint64_t > (tfs);
     return 0;
 }
 
@@ -106,7 +107,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    TFS *tfs = getTfs(path);
     if (tfs == nullptr) {
         return -ENOENT;
     }
@@ -179,7 +180,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
+    TFS *tfs = getTfs(path);
     if (tfs == nullptr) {
         return -EACCES;
     }
@@ -264,7 +265,6 @@ terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &
     tfs.uid = getuid();
     tfs.nlink = 1;
     tfs.size = 0;
-
     return writeToTerark(tfs);
 }
 
@@ -653,10 +653,21 @@ uint64_t TerarkFuseOper::getTime() {
 }
 
 int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
+    std::cout << "TerarkFuse::flush:" << path << std::endl;
+
     if (!ifExist(path))
         return -ENOENT;
     if (ifDictExist(path))
         return -EISDIR;
+
+    TFS *tfs = getTfs(path);
+    if (tfs == nullptr)
+        return -EACCES;
+    auto rid = writeToTerark(*tfs);
+    if (rid < 0)
+        return -EACCES;
+    tfsBuffer.release(path);
+    ffi->fh = 0;
     return 0;
 }
 
@@ -671,14 +682,9 @@ bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime, TFS *tfs) {
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuse::release:" << path << std::endl;
-    TFS *tfs = reinterpret_cast<TFS*>(ffi->fh);
-    if (tfs == nullptr)
-        return -EACCES;
-    auto rid = writeToTerark(*tfs);
-    if (rid < 0)
-        return -EACCES;
-    tfsBuffer.release(path);
+
     ffi->fh = 0;
+    tfsBuffer.release(path);
     return 0;
 }
 
@@ -701,15 +707,29 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
 
 DbContextPtr &TerarkFuseOper::getThreadSafeCtx() {
 
-    if (threadSafeCtxAndBuf.local() == nullptr)
-        threadSafeCtxAndBuf.local() = tab->createDbContext();
-    assert(threadSafeCtxAndBuf.local() != nullptr);
-    return threadSafeCtxAndBuf.local();
+    if (threadSafeCtx.local() == nullptr)
+        threadSafeCtx.local() = tab->createDbContext();
+    assert(threadSafeCtx.local() != nullptr);
+    return threadSafeCtx.local();
+
 }
 
-terark::llong TerarkFuseOper::writeToTerark(terark::TFS &tfs) {
+terark::llong TerarkFuseOper::writeToTerark(const terark::TFS &tfs) {
+
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    return getThreadSafeCtx()->upsertRow(tfs.encode(rowBuilder));
+    auto rid = getRid(tfs.path);
+    if (rid >= 0)
+        rid = getThreadSafeCtx()->updateRow(rid,tfs.encode(rowBuilder));
+    else
+        rid = getThreadSafeCtx()->insertRow(tfs.encode(rowBuilder));
+    return rid;
+}
+
+TFS * TerarkFuseOper::getTfs(const char *path) {
+    if (tfs_map.count(path) > 0)
+        return tfs_map[path];
+    else
+        return NULL;
 }
 
 

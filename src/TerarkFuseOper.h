@@ -20,7 +20,7 @@
 #include <tbb/enumerable_thread_specific.h>
 class TerarkFuseOper {
 private:
-
+    terark::db::DbContextPtr ctx;
     terark::db::CompositeTablePtr tab;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
@@ -57,10 +57,12 @@ private:
 
 
     TfsBuffer tfsBuffer;
-    typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtxAndBuf;
-    ThreadSafeCtxAndBuf threadSafeCtxAndBuf;
+    typedef tbb::enumerable_thread_specific< terark::db::DbContextPtr> ThreadSafeCtx;
+    ThreadSafeCtx threadSafeCtx;
     terark::db::DbContextPtr & getThreadSafeCtx();
-    terark::llong writeToTerark(terark::TFS &tfs);
+    terark::llong writeToTerark(const terark::TFS &tfs);
+    tbb::concurrent_unordered_map<std::string,terark::TFS*> tfs_map;
+    terark::TFS * getTfs(const char *path);
 public:
     static uint64_t ns_per_sec;
 

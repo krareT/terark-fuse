@@ -48,7 +48,7 @@ public:
         if ( buffer_map.count(path) == 0)
             return false;
         buffer_map[path]->ref--;
-        std::cout << "release:" << path << ":" << buffer_map[path]->ref <<std::endl;
+        std::cout << "tfsBuffer:release:" << path << ":" << buffer_map[path]->ref <<std::endl;
         if (buffer_map[path]->ref.load(std::memory_order_relaxed) <= 0) {
 
             delete buffer_map[path];

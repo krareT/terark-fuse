@@ -5,7 +5,7 @@
 #ifndef TERARK_FUSE_TFSBUFFER_H
 #define TERARK_FUSE_TFSBUFFER_H
 
-#include "tfs.hpp"
+#include "tfs.h"
 #include <atomic>
 #include <tbb/concurrent_unordered_map.h>
 #include <iostream>
@@ -59,10 +59,12 @@ public:
         }
     }
     terark::TFS *getTFS(const char *path){
-        if ( buffer_map.count(path) == 0)
+        auto find = buffer_map.find(path);
+        if ( find == buffer_map.end())
             return NULL;
-        buffer_map[path]->ref++;
-        return buffer_map[path]->tfs;
+        find->second->ref++;
+        std::cout << "tfsBuffer:get:" << path << ":" << find->second->ref.load(std::memory_order_relaxed) <<std::endl;
+        return find->second->tfs;
     }
     ~TfsBuffer(){
 

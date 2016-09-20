@@ -570,8 +570,10 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     if (rid < 0)
         return -ENOENT;
     TFS *tfs = tfsBuffer.getTFS(path);
-    if (tfs != nullptr)
+    if (tfs != nullptr) {
         tfs->content.resize(size, '\0');
+        tfsBuffer.release(path);
+    }
     else {
         valvec<byte> row_data;
         ctx->getValue(rid, &row_data);
@@ -664,16 +666,6 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
         return -ENOENT;
     if (ifDictExist(path))
         return -EISDIR;
-
-    TFS *tfs = getMyTfs(path, ffi->fh);
-    assert(tfs->path.size() == strlen(path));
-    if (tfs == nullptr)
-        return -EACCES;
-    auto rid = writeToTerark(*tfs);
-    if (rid < 0)
-        return -EACCES;
-    //tfsBuffer.release(path);
-
     return 0;
 }
 
@@ -689,6 +681,17 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuse::release:" << path << std::endl;
 
+    if (!ifExist(path))
+        return -ENOENT;
+    if (ifDictExist(path))
+        return -EISDIR;
+    TFS *tfs = getMyTfs(path, ffi->fh);
+    assert(tfs->path.size() == strlen(path));
+    if (tfs == nullptr)
+        return -EACCES;
+    auto rid = writeToTerark(*tfs);
+    if (rid < 0)
+        return -EACCES;
     tfsBuffer.release(path);
     ffi->fh = 0;
     return 0;

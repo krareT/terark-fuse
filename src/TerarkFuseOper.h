@@ -13,7 +13,7 @@
 #include <iostream>
 #include <thread>
 #include <terark/db/db_conf.hpp>
-#include "tfs.hpp"
+#include "tfs.h"
 #include "TfsBuffer.h"
 #include <algorithm>
 #include <sys/types.h>

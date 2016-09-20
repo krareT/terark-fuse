@@ -61,8 +61,9 @@ private:
     ThreadSafeCtx threadSafeCtx;
     terark::db::DbContextPtr & getThreadSafeCtx();
     terark::llong writeToTerark(const terark::TFS &tfs);
-    tbb::concurrent_unordered_map<std::string,terark::TFS*> tfs_map;
-    terark::TFS * getTfs(const char *path);
+//    std::unordered_map<std::string,terark::TFS*> tfs_map;
+    terark::TFS *getMyTfs(const char *path, uint64_t fh);
+    bool setMyTfs(terark::TFS *tfs,uint64_t& fh);
 public:
     static uint64_t ns_per_sec;
 

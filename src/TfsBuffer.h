@@ -64,11 +64,6 @@ public:
         buffer_map[path]->ref++;
         return buffer_map[path]->tfs;
     }
-    terark::TFS *getTempTfs(const char *path){
-        if ( buffer_map.count(path) == 0)
-            return NULL;
-        return buffer_map[path]->tfs;
-    }
     ~TfsBuffer(){
 
         for(auto &each : buffer_map){

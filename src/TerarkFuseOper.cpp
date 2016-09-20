@@ -42,7 +42,6 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
         auto ret = this->createFile("/", 0666 | S_IFDIR);
         assert(ret == 0);
     }
-
 }
 
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
@@ -55,11 +54,14 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
     auto rid = createFile(path, mod | S_IFREG);
     if ( rid < 0)
         return -EBADF;
-    assert(ffi->fh == 0);
+
     tfsBuffer.insert(path,rid,getThreadSafeCtx());
     TFS *tfs = tfsBuffer.getTFS(path);
+
     if (tfs == nullptr)
         return -EBADF;
+    bool ret = setMyTfs(tfs,ffi->fh);
+    assert(ret == true);
     return 0;
 }
 
@@ -70,7 +72,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     memset(stbuf, 0, sizeof(struct stat));
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = tfsBuffer.getTempTfs(path);
+    TFS *tfs = tfsBuffer.getTFS(path);
     if (tfs == nullptr) {
         std::cout << "tfs == nullptr" << std::endl;
         getFileMetainfo(getRid(path), *stbuf);
@@ -79,12 +81,13 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     else {
         std::cout << "tfs != nullptr" << std::endl;
         getFileMetainfo(*tfs, *stbuf);
+        tfsBuffer.release(path);
     }
 
     return 0;
 }
 
-int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
+int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffi) {
 
     //std::cout << "TerarkFuseOper::open:" << path << std::endl;
     //std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
@@ -94,10 +97,11 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
     }
     tfsBuffer.insert(path, getRid(path), getThreadSafeCtx());
     TFS *tfs = tfsBuffer.getTFS(path);
+    assert(tfs->path.size() == strlen(path));
     if (tfs == nullptr)
         return -ENOENT;
-    if (ffo->fh == 0)
-        ffo->fh = reinterpret_cast<uint64_t >(tfs);
+    auto ret = setMyTfs(tfs,ffi->fh);
+    assert(tfs->path.size() == strlen(path));
     return 0;
 }
 
@@ -107,7 +111,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = getTfs(path);
+    TFS *tfs = getMyTfs(path, ffi->fh);
     if (tfs == nullptr) {
         return -ENOENT;
     }
@@ -180,7 +184,8 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     //check if exist
     if (!ifExist(path))
         return -ENOENT;
-    TFS *tfs = getTfs(path);
+    TFS *tfs = getMyTfs(path, ffi->fh);
+    assert(tfs->path.size() == strlen(path));
     if (tfs == nullptr) {
         return -EACCES;
     }
@@ -660,14 +665,15 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
     if (ifDictExist(path))
         return -EISDIR;
 
-    TFS *tfs = getTfs(path);
+    TFS *tfs = getMyTfs(path, ffi->fh);
+    assert(tfs->path.size() == strlen(path));
     if (tfs == nullptr)
         return -EACCES;
     auto rid = writeToTerark(*tfs);
     if (rid < 0)
         return -EACCES;
-    tfsBuffer.release(path);
-    ffi->fh = 0;
+    //tfsBuffer.release(path);
+
     return 0;
 }
 
@@ -683,8 +689,8 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
     std::cout << "TerarkFuse::release:" << path << std::endl;
 
-    ffi->fh = 0;
     tfsBuffer.release(path);
+    ffi->fh = 0;
     return 0;
 }
 
@@ -725,11 +731,17 @@ terark::llong TerarkFuseOper::writeToTerark(const terark::TFS &tfs) {
     return rid;
 }
 
-TFS * TerarkFuseOper::getTfs(const char *path) {
-    if (tfs_map.count(path) > 0)
-        return tfs_map[path];
-    else
-        return NULL;
+terark::TFS * TerarkFuseOper::getMyTfs(const char *path, uint64_t fh) {
+
+    TFS *ret = reinterpret_cast<TFS*>(fh);
+    return ret;
+}
+
+bool TerarkFuseOper::setMyTfs(TFS *tfs, uint64_t &fh) {
+    if ( fh != 0)
+        return false;
+    fh = reinterpret_cast<uint64_t >(tfs);
+    return true;
 }
 
 

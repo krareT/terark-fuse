@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #make
 mnt_dir=/data/publicdata/wikipedia/experiment/posix_tefuse/
-core_dir=/data/terark_fuse_mount/terark-fuse-core/
+core_dir=/data/terark_fuse_mount/terark-fuse-core/ 
+~/Documents/pkg/terark-db-Linux-x86_64-g++-5.3-bmi2-1/bin/terark-db-schema-compile.exe $core_dir/dbmeta.json terark TFS > ./src/tfs.h
 rm -rf build
 mkdir build
 cd build

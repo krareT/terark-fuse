@@ -34,8 +34,6 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_ctime_id < tab->getColumnNum());
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
-    ctx = tab->createDbContext();
-    assert(ctx != nullptr);
     //create root dict : "/"
     if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 

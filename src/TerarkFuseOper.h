@@ -20,7 +20,6 @@
 #include <tbb/enumerable_thread_specific.h>
 class TerarkFuseOper {
 private:
-    terark::db::DbContextPtr ctx;
     terark::db::CompositeTablePtr tab;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;

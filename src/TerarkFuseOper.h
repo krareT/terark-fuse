@@ -19,11 +19,13 @@
 #include <sys/types.h>
 #include <tbb/enumerable_thread_specific.h>
 #include <mutex>
+#include <boost/thread/tss.hpp>
 class TerarkFuseOper {
 private:
+
     terark::db::CompositeTablePtr tab;
-    terark::db::DbContextPtr ctx;
-    std::recursive_mutex ctx_mtx;
+    static boost::thread_specific_ptr<terark::db::DbContext> threadSafeCtx;
+    terark::db::DbContext * getThreadSafeCtx();
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
     size_t file_mode_id;
@@ -59,8 +61,8 @@ private:
 
 
     TfsBuffer tfsBuffer;
-    typedef tbb::enumerable_thread_specific< terark::db::DbContext*> ThreadSafeCtx;
-    ThreadSafeCtx threadSafeCtx;
+    //typedef tbb::enumerable_thread_specific< terark::db::DbContext*> ThreadSafeCtx;
+//    ThreadSafeCtx threadSafeCtx;
     //terark::db::DbContext * getThreadSafeCtx();
     terark::llong writeToTerark(const terark::TFS &tfs);
 //    std::unordered_map<std::string,terark::TFS*> tfs_map;

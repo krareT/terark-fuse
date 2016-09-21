@@ -17,6 +17,7 @@ target_link_libraries(terark_fuse
                         tbb
                         boost_system
                         boost_filesystem
+                        boost_thread
                         terark-fsa_all-d
                         terark-db-d
                         wiredtiger

@@ -714,12 +714,12 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
     return true;
 }
 
-DbContextPtr &TerarkFuseOper::getThreadSafeCtx() {
-
-    if (threadSafeCtx.local() == nullptr)
-        threadSafeCtx.local() = tab->createDbContext();
-    assert(threadSafeCtx.local() != nullptr);
-    return threadSafeCtx.local();
+DbContextPtr& TerarkFuseOper::getThreadSafeCtx() {
+    DbContextPtr& r = threadSafeCtx.local();
+    if (r == nullptr)
+        r = tab->createDbContext();
+    assert(r != nullptr);
+    return r;
 
 }
 

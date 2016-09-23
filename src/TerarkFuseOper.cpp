@@ -14,7 +14,8 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
 
     tab = terark::db::CompositeTable::open(dbpath);
     assert(tab != nullptr);
-
+    printf("Compact!\n");
+    tab->compact();
     path_idx_id = tab->getIndexId("path");
     assert(path_idx_id < tab->getIndexNum());
 
@@ -36,7 +37,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_ctime_id < tab->getColumnNum());
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
-
+    ctx = tab->createDbContext();
     //create root dict : "/"
     if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 
@@ -69,7 +70,10 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
     
-
+    if (strcmp(path,"/terark-compact") == 0){
+        tab->compact();
+        return -EBADF;
+    }
     memset(stbuf, 0, sizeof(struct stat));
     if (!ifExist(path))
         return -ENOENT;
@@ -117,15 +121,18 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
     if (tfs == nullptr) {
         return -ENOENT;
     }
-    if (offset < tfs->content.size()) {
-        if (offset + size > tfs->content.size())
-            size = tfs->content.size() - offset;
-        memcpy(buf, tfs->content.c_str() + offset, size);
-    } else {
-        size = 0;
+    {
+        tbb::reader_writer_lock::scoped_lock_read(tfs->rw_lock);
+        if (offset < tfs->content.size()) {
+            if (offset + size > tfs->content.size())
+                size = tfs->content.size() - offset;
+            memcpy(buf, tfs->content.c_str() + offset, size);
+        } else {
+            size = 0;
+        }
+        tfs->atime = getTime();
     }
     //updateAtime(path,getTime(),tfs);
-    tfs->atime = getTime();
     std::cout <<"TerarkFuseOper::read:" <<buf << std::endl;
     return size;
 }
@@ -193,13 +200,15 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     if (tfs == nullptr) {
         return -EACCES;
     }
-    if (offset + size > tfs->content.size()) {
-        tfs->content.resize(offset + size);
+    {
+        tbb::reader_writer_lock::scoped_lock scoped_lock(tfs->rw_lock);
+        if (offset + size > tfs->content.size()) {
+            tfs->content.resize(offset + size);
+        }
+        tfs->content.replace(offset, size, buf, size);
+        tfs->size = tfs->content.size();
+        tfs->mtime = getTime();
     }
-    tfs->content.replace(offset, size, buf, size);
-    tfs->size = tfs->content.size();
-    tfs->mtime = getTime();
-    std::cout << "TerarkFuseOper::write:" << tfs->content << std::endl;
     return size;
 }
 
@@ -590,28 +599,22 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     auto rid = getRid(path);
     if (rid < 0)
         return -ENOENT;
-    TFS *tfs = tfsBuffer.getTFS(path);
-    if (tfs != nullptr) {
-        tfs->content.resize(size, '\0');
-        tfsBuffer.release(path);
-    }
-    else {
-        valvec<byte> row_data;
-        getThreadSafeCtx()->getValue(rid, &row_data);
-        TFS tfs;
-        tfs.decode(row_data);
-        tfs.content.resize(size, '\0');
-        tfs.size = tfs.content.size();
+    valvec<byte> row_data;
+    getThreadSafeCtx()->getValue(rid, &row_data);
+    TFS tfs;
+    tfs.decode(row_data);
+    tfs.content.resize(size, '\0');
+    tfs.size = tfs.content.size();
 
-        terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-        rowBuilder.rewind();
-        rowBuilder << tfs;
-        rid = getThreadSafeCtx()->upsertRow(rowBuilder.written());
-        if (rid < 0)
-            return -EACCES;
-        updateCtime(rid);
-        updateMtime(rid);
-    }
+    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
+    rowBuilder.rewind();
+    rowBuilder << tfs;
+    rid = getThreadSafeCtx()->upsertRow(rowBuilder.written());
+    if (rid < 0)
+        return -EACCES;
+    updateCtime(rid);
+    updateMtime(rid);
+
     return 0;
 }
 
@@ -710,10 +713,8 @@ bool TerarkFuseOper::updateAtime(const char *path, uint64_t atime, TFS *tfs) {
 }
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
-    
 
     std::cout << "TerarkFuse::release:" << path << std::endl;
-
     if (!ifExist(path))
         return -ENOENT;
     if (ifDictExist(path))
@@ -742,20 +743,23 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
 
 
 
-terark::llong TerarkFuseOper::writeToTerark(const terark::TFS &tfs) {
+terark::llong TerarkFuseOper::writeToTerark(TFS &tfs) {
     
-
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    auto rid = getRid(tfs.path);
+    llong rid;
+    {
+        tbb::reader_writer_lock::scoped_lock_read(tfs.rw_lock);
+        rid = getRid(tfs.path);
 
-    try {
-        if (rid >= 0)
-            rid = getThreadSafeCtx()->updateRow(rid, tfs.encode(rowBuilder));
-        else
-            rid = getThreadSafeCtx()->insertRow(tfs.encode(rowBuilder));
-    }catch ( const std::exception &e){
-        fprintf(stderr,"%s\n",e.what());
-        return -1;
+    //    try {
+            if (rid >= 0)
+                rid = getThreadSafeCtx()->updateRow(rid, tfs.encode(rowBuilder));
+            else
+                rid = getThreadSafeCtx()->insertRow(tfs.encode(rowBuilder));
+//    //    }catch ( const std::exception &e){
+//            fprintf(stderr,"%s\n",e.what());
+//            return -1;
+//        }
     }
     return rid;
 }
@@ -774,12 +778,13 @@ bool TerarkFuseOper::setMyTfs(TFS *tfs, uint64_t &fh) {
 }
 
 DbContext * TerarkFuseOper::getThreadSafeCtx() {
-    auto ptr = threadSafeCtx.get();
-    if (ptr == nullptr) {
-        ptr = tab->createDbContext();
-        threadSafeCtx.reset( ptr);
-    }
-    return ptr;
+//    auto ptr = threadSafeCtx.get();
+//    if (ptr == nullptr) {
+//        ptr = tab->createDbContext();
+//        threadSafeCtx.reset( ptr);
+//    }
+//    return ptr;
+    return ctx.get();
 }
 
 

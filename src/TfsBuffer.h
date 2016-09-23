@@ -9,6 +9,7 @@
 #include <atomic>
 #include <tbb/concurrent_unordered_map.h>
 #include <iostream>
+#include <tbb/spin_rw_mutex.h>
 
 struct FileObj{
     terark::TFS *tfs;

@@ -24,6 +24,7 @@ class TerarkFuseOper {
 private:
 
     terark::db::CompositeTablePtr tab;
+    terark::db::DbContextPtr ctx;
     static boost::thread_specific_ptr<terark::db::DbContext> threadSafeCtx;
     terark::db::DbContext * getThreadSafeCtx();
     uint32_t path_idx_id;
@@ -64,7 +65,7 @@ private:
     //typedef tbb::enumerable_thread_specific< terark::db::DbContext*> ThreadSafeCtx;
 //    ThreadSafeCtx threadSafeCtx;
     //terark::db::DbContext * getThreadSafeCtx();
-    terark::llong writeToTerark(const terark::TFS &tfs);
+    terark::llong writeToTerark(terark::TFS &tfs);
 //    std::unordered_map<std::string,terark::TFS*> tfs_map;
     terark::TFS *getMyTfs(const char *path, uint64_t fh);
     bool setMyTfs(terark::TFS *tfs,uint64_t& fh);
@@ -74,6 +75,7 @@ public:
     TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
+        tab->compact();
         tab->safeStopAndWaitForFlush();
         tab = NULL;
     }

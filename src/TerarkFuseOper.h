@@ -24,8 +24,8 @@ class TerarkFuseOper {
 private:
 
     terark::db::CompositeTablePtr tab;
-    terark::db::DbContextPtr ctx;
-    static boost::thread_specific_ptr<terark::db::DbContext> threadSafeCtx;
+    //terark::db::DbContextPtr ctx;
+    tbb::enumerable_thread_specific<terark::db::DbContextPtr> ctx_local;
     terark::db::DbContext * getThreadSafeCtx();
     uint32_t path_idx_id;
     size_t file_stat_cg_id;

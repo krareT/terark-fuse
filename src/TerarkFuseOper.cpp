@@ -5,7 +5,7 @@
 #include "TerarkFuseOper.h"
 
 
-boost::thread_specific_ptr<terark::db::DbContext> TerarkFuseOper::threadSafeCtx;
+//boost::thread_specific_ptr<terark::db::DbContext> TerarkFuseOper::threadSafeCtx;
 uint64_t TerarkFuseOper::ns_per_sec = 1000000000;
 using namespace terark;
 using namespace db;
@@ -37,7 +37,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_ctime_id < tab->getColumnNum());
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
-    ctx = tab->createDbContext();
+    //ctx = tab->createDbContext();
     //create root dict : "/"
     if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 
@@ -638,7 +638,6 @@ int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
     temp_atime *= ns_per_sec;
     temp_mtime *= ns_per_sec;
     tab->updateColumn(rid, file_atime_id, Schema::fstringOf(&temp_atime));
-
     tab->updateColumn(rid, file_mtime_id, Schema::fstringOf(&temp_mtime));
     return 0;
 }
@@ -784,7 +783,14 @@ DbContext * TerarkFuseOper::getThreadSafeCtx() {
 //        threadSafeCtx.reset( ptr);
 //    }
 //    return ptr;
-    return ctx.get();
+//    return ctx.get();
+    auto ptr = ctx_local.local();
+    if (ptr.get() == nullptr){
+        ptr = tab->createDbContext();
+        ctx_local = ptr;
+    }
+
+    return ptr.get();
 }
 
 

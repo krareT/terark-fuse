@@ -18,6 +18,6 @@ fusermount -u $mnt_dir
 mkdir $mnt_dir
 rm -f $core_dir/run.lock
 rm -rf $core_dir/g-*
-echo "-------------------run"
-gdb --args ./build/terark_fuse -d -f -o nonempty -o allow_other -o auto_unmount $mnt_dir -terark_core=$core_dir
+
+gdb --args ./build/terark_fuse -d -s -f -o nonempty -o allow_other -o auto_unmount $mnt_dir -terark_core=$core_dir
 #./build/terark_fuse -d -f -s -o nonempty -o allow_other -o auto_unmount $mnt_dir -terark_core=$core_dir 1>/dev/null

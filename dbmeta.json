@@ -1,0 +1,76 @@
+{
+  "RowSchema": {
+    "columns": {
+      "path": {
+        "type": "strzero"
+      },
+      "content": {
+        "type": "binary"
+      },
+      "mode": {
+        "type": "uint32"
+      },
+      "ino": {
+        "type": "uint64"
+      },
+      "nlink": {
+        "type": "uint64"
+      },
+      "uid": {
+        "type": "uint64"
+      },
+      "gid": {
+        "type": "uint64"
+      },
+      "size": {
+        "type": "uint64"
+      },
+      "blocks": {
+        "type": "uint64"
+      },
+      "atime": {
+        "type": "uint64"
+      },
+      "mtime": {
+        "type": "uint64"
+      },
+      "ctime": {
+        "type": "uint64"
+      }
+    }
+  },
+  "ColumnGroups": {
+    "file_stat": {
+      "fields": [
+        "mode",
+        "ino",
+        "nlink",
+        "uid",
+        "gid",
+        "size",
+        "blocks",
+        "atime",
+        "mtime",
+        "ctime"
+      ],
+      "inplaceUpdatable": true,
+      "nltDelims": " \\t,.:?<",
+      "minFragLen": 8, "maxFragLen": 100,
+      "dictZipSampleRatio": 0.01,
+      "dictZipLocalMatch": true,
+      "mmapPopulate" : true,
+      "useFastZip": true,
+      "checksumLevel":2
+    }
+  },
+  "MaxWrSegSize": "3G",
+  "MinMergeSegNum": 3,
+  "TableIndex": [
+    {
+      "fields": "path",
+      "ordered": true,
+      "unique": true,
+      "nltNestLevel": 2
+    }
+  ]
+}

@@ -13,9 +13,9 @@
 #include <iostream>
 #include <thread>
 #include <terark/db/db_conf.hpp>
-#include "tfs.hpp"
+#include "tfs.h"
 #include <algorithm>
-
+#include "TfsBuffer.h"
 class TerarkFuseOper {
 private:
     terark::db::CompositeTablePtr tab;
@@ -51,7 +51,7 @@ private:
     bool updateCtime(terark::llong rid,uint64_t ctime = getTime());
     bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
     bool updateAtime(terark::llong rid,uint64_t atime = getTime());
-    bool updateFileSize(terark::llong rid,uint64_t size);
+
 
 public:
     static uint64_t ns_per_sec;
@@ -109,7 +109,7 @@ public:
     int flush(const char *, struct fuse_file_info *);
 
 
-    int (*release)(const char *, struct fuse_file_info *);
+    int release(const char *, struct fuse_file_info *);
 
     int (*fsync)(const char *, int, struct fuse_file_info *);
 

@@ -36,6 +36,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
 
+
     //create root dict : "/"
     if (false == ctx->indexKeyExists(path_idx_id, "/")) {
 
@@ -59,7 +60,10 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
     //std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
-
+    if (strcmp(path,"/terark-compact") == 0){
+        tab->compact();
+        return -EBADF;
+    }
     memset(stbuf, 0, sizeof(struct stat));
     if ( !ifExist(path))
         return -ENOENT;
@@ -188,15 +192,13 @@ long long TerarkFuseOper::getRid(const std::string &path) {
     std::string path_str = path;
     //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
-    assert(ridvec.size() <= 1);
-    if ( ridvec.size() == 1)
-        return ridvec[0];
+    if ( ridvec.size() != 0)
+        return *std::max_element(ridvec.begin(),ridvec.end());
     path_str.push_back('/');
     //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
-    assert(ridvec.size() <= 1);
-    if ( ridvec.size() == 1)
-        return ridvec[0];
+    if ( ridvec.size() != 0)
+        return *std::max_element(ridvec.begin(),ridvec.end());
     return -1;
 
 }
@@ -638,6 +640,15 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
     if ( !ifExist(path))
         return -ENOENT;
     if ( ifDictExist(path))
+        return -EISDIR;
+    return 0;
+}
+
+int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
+
+    if (false == ifExist(path))
+        return -ENOENT;
+    if (ifDict(path))
         return -EISDIR;
     return 0;
 }

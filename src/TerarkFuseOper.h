@@ -16,8 +16,13 @@
 #include "tfs.h"
 #include <algorithm>
 #include "TfsBuffer.h"
+#include <tbb/concurrent_unordered_set.h>
+#include <mutex>
+
+
 class TerarkFuseOper {
 private:
+
     terark::db::CompositeTablePtr tab;
     terark::db::DbContextPtr ctx;
     uint32_t path_idx_id;

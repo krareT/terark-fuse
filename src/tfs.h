@@ -7,7 +7,6 @@
 
 namespace terark {
   struct TFS {
-    tbb::reader_writer_lock rw_lock;
     std::string path;
     std::string content;
     std::uint32_t mode;

@@ -24,8 +24,10 @@ class TerarkFuseOper {
 private:
 
     terark::db::CompositeTablePtr tab;
-    //terark::db::DbContextPtr ctx;
-    tbb::enumerable_thread_specific<terark::db::DbContextPtr> ctx_local;
+    terark::db::DbContextPtr ctx;
+    std::recursive_mutex mtx_ctx;
+    //tbb::enumerable_thread_specific<terark::db::DbContext*> ctx_local;
+    tbb::concurrent_unordered_map<pid_t ,terark::db::DbContext*> ctx_map;
     terark::db::DbContext * getThreadSafeCtx();
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
@@ -39,7 +41,7 @@ private:
     long long getRid(const std::string &path);
 
     bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
-    bool getFileMetainfo(const terark::TFS &, struct stat &stbuf);
+    bool getFileMetainfo(terark::TFS &, struct stat &stbuf);
     struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
 
     terark::llong createFile(const std::string &path, const mode_t &mod);

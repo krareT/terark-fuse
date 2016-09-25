@@ -16,6 +16,8 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(tab != nullptr);
     printf("Compact!\n");
     tab->compact();
+    tab->compact();
+    tab->compact();
     path_idx_id = tab->getIndexId("path");
     assert(path_idx_id < tab->getIndexNum());
 
@@ -37,7 +39,7 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
     assert(file_ctime_id < tab->getColumnNum());
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
-    //ctx = tab->createDbContext();
+    ctx = tab->createDbContext();
     //create root dict : "/"
     if (false == getThreadSafeCtx()->indexKeyExists(path_idx_id, "/")) {
 
@@ -69,8 +71,9 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
-    
+
     if (strcmp(path,"/terark-compact") == 0){
+
         tab->compact();
         return -EBADF;
     }
@@ -216,19 +219,22 @@ long long TerarkFuseOper::getRid(const std::string &path) {
     
 
     valvec<llong> ridvec;
-
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     std::string path_str = path;
     //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     getThreadSafeCtx()->indexSearchExact(path_idx_id, path_str, &ridvec);
-    assert(ridvec.size() <= 1);
-    if (ridvec.size() == 1)
-        return ridvec[0];
+
+
+    if (ridvec.size() != 0) {
+
+        return *std::max_element(ridvec.begin(),ridvec.end());
+    }
     path_str.push_back('/');
     //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
     getThreadSafeCtx()->indexSearchExact(path_idx_id, path_str, &ridvec);
-    assert(ridvec.size() <= 1);
-    if (ridvec.size() == 1)
-        return ridvec[0];
+
+    if (ridvec.size() != 0)
+        return *std::max_element(ridvec.begin(),ridvec.end());
     return -1;
 
 }
@@ -239,7 +245,7 @@ bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf
     assert(rid >= 0);
     TFS_Colgroup_file_stat tfs_fs;
     valvec<byte> cgData;
-
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->selectOneColgroup(rid, file_stat_cg_id, &cgData);
     if (cgData.size() == 0) {
         return false;
@@ -412,6 +418,7 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
     
 
 
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     if (path == "/")
         return true;
     if (getThreadSafeCtx()->indexKeyExists(path_idx_id, path))
@@ -429,6 +436,7 @@ bool TerarkFuseOper::ifDict(const std::string &path) {
 
     auto rid = getRid(path);
     valvec<byte> row;
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->selectOneColumn(rid, tab->getColumnId("path"), &row);
 
     fstring p(row.data());
@@ -472,8 +480,8 @@ int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
 }
 
 bool TerarkFuseOper::ifDictExist(const std::string &path) {
-    
 
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     if (path.back() == '/')
         return getThreadSafeCtx()->indexKeyExists(path_idx_id, path);
     else
@@ -495,6 +503,7 @@ int TerarkFuseOper::unlink(const char *path) {
     auto rid = getRid(path);
     if (rid < 0)
         return -ENOENT;
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->removeRow(rid);
     return 0;
 }
@@ -516,6 +525,7 @@ int TerarkFuseOper::rmdir(const char *path) {
     if (rid < 0) {
         return -EACCES;
     }
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->removeRow(rid);
     return 0;
 }
@@ -558,6 +568,7 @@ int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
 
     TFS tfs;
     valvec<byte> row;
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->getValue(rid, &row);
     tfs.decode(row);
     tfs.path = new_path;
@@ -600,6 +611,7 @@ int TerarkFuseOper::truncate(const char *path, off_t size) {
     if (rid < 0)
         return -ENOENT;
     valvec<byte> row_data;
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     getThreadSafeCtx()->getValue(rid, &row_data);
     TFS tfs;
     tfs.decode(row_data);
@@ -719,11 +731,12 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
     if (ifDictExist(path))
         return -EISDIR;
     tfsBuffer.release(path);
-    ffi->fh = 0;
+    //ffi->fh = 0;
     return 0;
 }
 
-bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
+bool TerarkFuseOper::getFileMetainfo(terark::TFS &tfs, struct stat &st) {
+    tbb::reader_writer_lock::scoped_lock_read(tfs.rw_lock);
     st.st_mode = tfs.mode;
     st.st_atim.tv_sec = tfs.atime / ns_per_sec;
     st.st_atim.tv_nsec = tfs.atime % ns_per_sec;
@@ -743,13 +756,13 @@ bool TerarkFuseOper::getFileMetainfo(const terark::TFS &tfs, struct stat &st) {
 
 
 terark::llong TerarkFuseOper::writeToTerark(TFS &tfs) {
-    
+
+    std::lock_guard<std::recursive_mutex> _mtx(mtx_ctx);
     terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
     llong rid;
+    rid = getRid(tfs.path);
     {
         tbb::reader_writer_lock::scoped_lock_read(tfs.rw_lock);
-        rid = getRid(tfs.path);
-
     //    try {
             if (rid >= 0)
                 rid = getThreadSafeCtx()->updateRow(rid, tfs.encode(rowBuilder));
@@ -784,13 +797,20 @@ DbContext * TerarkFuseOper::getThreadSafeCtx() {
 //    }
 //    return ptr;
 //    return ctx.get();
-    auto ptr = ctx_local.local();
-    if (ptr.get() == nullptr){
-        ptr = tab->createDbContext();
-        ctx_local = ptr;
-    }
+//    if (ctx_local.local() == nullptr)
+//        ctx_local.local() = tab->createDbContext();
+//    return ctx_local.local();
 
-    return ptr.get();
+//    auto pid = fuse_get_context()->pid;
+//
+//    auto r = ctx_map.find( pid);
+//    if (r == ctx_map.end()) {
+//        ctx_map[pid] = tab->createDbContext();
+//        r = ctx_map.find(pid);
+//    }
+//    return r->second;
+    assert(ctx.get() != nullptr);
+    return ctx.get();
 }
 
 

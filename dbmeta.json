@@ -57,13 +57,11 @@
       "nltDelims": " \\t,.:?<",
       "minFragLen": 8, "maxFragLen": 100,
       "dictZipSampleRatio": 0.01,
-      "dictZipLocalMatch": true,
       "mmapPopulate" : true,
-      "useFastZip": true,
-      "checksumLevel":2
+      "useFastZip": true
     }
   },
-  "MaxWrSegSize": "3G",
+  "MaxWrSegSize": "2M",
   "MinMergeSegNum": 3,
   "TableIndex": [
     {

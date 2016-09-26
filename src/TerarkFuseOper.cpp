@@ -381,8 +381,6 @@ bool TerarkFuseOper::ifExist(const std::string &path) {
 
     if (path == "/")
         return true;
-    if (buf_map.find(path) != buf_map.end())
-        return true;
     if (ctx->indexKeyExists(path_idx_id, path))
         return true;
 
@@ -655,9 +653,3 @@ int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
         return -EISDIR;
     return 0;
 }
-
-terark::llong TerarkFuseOper::insertToBuf(const std::string &path, mode_t mode) {
-    return 0;
-}
-
-

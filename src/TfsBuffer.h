@@ -11,20 +11,22 @@
 struct FileInfo{
 
     terark::TFS tfs;
-    std::atomic<uint64_t > ref;
+    std::atomic_bool update_flag;
     tbb::reader_writer_lock rw_lock;
-    FileInfo(){
-        ref.store(0);
+    FileInfo():update_flag{false}{
     }
 };
 class TfsBuffer{
 
 private:
-    tbb::concurrent_unordered_map<std::string,FileInfo> buf_map;
-    tbb::concurrent_unordered_map<std::string,std::mutex> prepare_insert;
+    tbb::concurrent_unordered_map<std::string,std::shared_ptr<FileInfo>> buf_map;
+    std::mutex insert_mtx;
+    uint64_t getTime();
 public:
     //the only method to insert new element to buf
     terark::llong insertToBuf(const std::string &path,mode_t mode);
-    terark::llong release(const std::string &,terark::db::DbContextPtr);
+    terark::llong release(const std::string &);
+    bool exist(const std::string &);
+    int read(const std::string &,char *buf,size_t size,size_t off);
 };
 #endif //TERARK_FUSE_TFSBUFFER_H

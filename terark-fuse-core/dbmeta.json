@@ -5,7 +5,7 @@
         "type": "strzero"
       },
       "content": {
-        "type": "strzero"
+        "type": "binary"
       },
       "mode": {
         "type": "uint32"
@@ -53,10 +53,15 @@
         "mtime",
         "ctime"
       ],
-      "inplaceUpdatable": true
+      "inplaceUpdatable": true,
+      "nltDelims": " \\t,.:?<",
+      "minFragLen": 8, "maxFragLen": 100,
+      "dictZipSampleRatio": 0.01,
+      "mmapPopulate" : true,
+      "useFastZip": true
     }
   },
-  "MaxWrSegSize": "3G",
+  "MaxWrSegSize": "100M",
   "MinMergeSegNum": 3,
   "TableIndex": [
     {

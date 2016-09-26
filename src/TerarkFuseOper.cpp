@@ -8,81 +8,42 @@ uint64_t TerarkFuseOper::ns_per_sec = 1000000000;
 using namespace terark;
 using namespace db;
 
-TerarkFuseOper::TerarkFuseOper(const char *dbpath) {
+TerarkFuseOper::TerarkFuseOper(const char *dbpath):tb(dbpath){
 
-    tab = terark::db::CompositeTable::open(dbpath);
-    assert(tab != NULL);
-
-    path_idx_id = tab->getIndexId("path");
-    assert(path_idx_id < tab->getIndexNum());
-
-    ctx = tab->createDbContext();
-    file_stat_cg_id = tab->getColgroupId("file_stat");
-    file_mode_id = tab->getColumnId("mode");
-    file_uid_id = tab->getColumnId("uid");
-    file_gid_id = tab->getColumnId("gid");
-    file_atime_id = tab->getColumnId("atime");
-    file_ctime_id = tab->getColumnId("ctime");
-    file_mtime_id = tab->getColumnId("mtime");
-    file_content_id = tab->getColumnId("content");
-
-
-    assert(file_stat_cg_id < tab->getColgroupNum());
-    assert(file_mode_id < tab->getColumnNum());
-    assert(file_uid_id < tab->getColumnNum());
-    assert(file_gid_id < tab->getColumnNum());
-    assert(file_atime_id < tab->getColumnNum());
-    assert(file_ctime_id < tab->getColumnNum());
-    assert(file_mtime_id < tab->getColumnNum());
-    assert(file_content_id < tab->getColumnNum());
-
-
-    //create root dict : "/"
-    if (false == ctx->indexKeyExists(path_idx_id, "/")) {
-
-        auto ret = this->createFile("/", 0666 | S_IFDIR);
-        assert(ret == 0);
-    }
 }
 
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
-    if (ifExist(path))
-        return -EEXIST;
-    //std::cout << "TerarkFuseOper::create:" << path << std::endl;
-    //std::cout << "TerarkFuseOper::create:" << printMode(mod) << std::endl;
-
-
-    if (createFile(path, mod | S_IFREG) < 0)
+    if (tb.exist(path) != false)
+    if (tb.insertToBuf(path, mod | S_IFREG) < 0)
         return -EACCES;
     return 0;
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
-    //std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
     if (strcmp(path,"/terark-compact") == 0){
-        tab->compact();
+        tb.compact();
         return -EBADF;
     }
     memset(stbuf, 0, sizeof(struct stat));
-    if ( !ifExist(path))
+    if ( tb.exist(path) == TfsBuffer::NOF)
         return -ENOENT;
-    auto rid = getRid(path);
-    getFileMetainfo(rid, *stbuf);
-
+    tb.getFileInfo(path,*stbuf);
     return 0;
 }
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
-    //std::cout << "TerarkFuseOper::open:" << path << std::endl;
-    //std::cout << "TerarkFuseOper::open flag:" << printFlag(ffo->flags) << std::endl;
-
-    if (false == ifExist(path)) {
+    auto ret = tb.exist(path);
+    if (ret == TfsBuffer::NOF) {
         return -ENOENT;
     }
-
+    if (ret == TfsBuffer::DIR){
+        return -EISDIR;
+    }
+    if (tb.loadToBuf(path) < 0)
+        return -EACCES;
     return 0;
 }
 
@@ -90,36 +51,25 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
 
     //std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
-    if (!ifExist(path))
+    if (tb.exist(path) == TfsBuffer::NOF)
         return -ENOENT;
 
-    auto rid = getRid(path);
-    assert(rid >= 0);
-    valvec<byte> row;
-    ctx->selectOneColumn(rid, tab->getColumnId("content"), &row);
-
-    if (offset < row.size()) {
-        if (offset + size > row.size())
-            size = row.size() - offset;
-        memcpy(buf, row.data() + offset, size);
-    } else {
-        size = 0;
-    }
-    updateAtime(rid);
+    tb.read(path,buf,size,offset);
     return size;
 }
 
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi) {
 
-    if ( !ifExist(path))
+    auto ret = tb.exist(path);
+    if ( ret == TfsBuffer::NOF)
         return -ENOENT;
-    if ( !ifDictExist(path))
+    if ( ret != TfsBuffer::DIR)
         return -ENOTDIR;
     //std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-    IndexIteratorPtr path_iter = tab->createIndexIterForward(path_idx_id,ctx.get());
+    IndexIteratorPtr path_iter = tb.getIter();
     valvec<byte> ret_path;
     llong rid;
     std::string path_str = path;
@@ -127,8 +77,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     if (path_str.back() != '/')
         path_str.push_back('/');
 
-    int ret = path_iter->seekLowerBound( path_str, &rid,&ret_path);
-    assert(ret == 0);
+    int suc = path_iter->seekLowerBound( path_str, &rid,&ret_path);
+    assert(suc == 0);
 
     bool not_increment_flag = false;
 
@@ -164,102 +114,12 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 
     valvec<byte> row_data;
     //check if exist
-    if (ctx->indexKeyExists(path_idx_id, path) == false)
+    if (!tb.exist(path))
         return -ENOENT;
-
-    auto rid = getRid(path);
-    ctx->getValue(rid, &row_data);
-    TFS tfs;
-    tfs.decode(row_data);
-    tfs.path = path;
-    if (offset + size > tfs.content.size()) {
-        tfs.content.resize(offset + size);
-    }
-    tfs.content.replace(offset, size, buf, size);
-    tfs.size = tfs.content.size();
-    tfs.mtime = getTime();
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    if (ctx->upsertRow(rowBuilder.written()) < 0)
-        return -EACCES;
-    return size;
+    return tb.write(path,buf,size,offset);
 }
 
-long long TerarkFuseOper::getRid(const std::string &path) {
 
-    valvec<llong> ridvec;
-
-    std::string path_str = path;
-    //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
-    ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
-    if ( ridvec.size() != 0)
-        return *std::max_element(ridvec.begin(),ridvec.end());
-    path_str.push_back('/');
-    //std::cout << "TerarkFuseOper::getRid:" << path_str << std::endl;
-    ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
-    if ( ridvec.size() != 0)
-        return *std::max_element(ridvec.begin(),ridvec.end());
-    return -1;
-
-}
-
-bool TerarkFuseOper::getFileMetainfo(const terark::llong rid, struct stat &stbuf) {
-
-    assert(rid >= 0);
-    TFS_Colgroup_file_stat tfs_fs;
-    valvec<byte> cgData;
-
-    ctx->selectOneColgroup(rid, file_stat_cg_id, &cgData);
-    if (cgData.size() == 0) {
-        return false;
-    }
-    tfs_fs.decode(cgData);
-    stbuf = getStat(tfs_fs, stbuf);
-    printStat(stbuf);
-    return true;
-}
-
-struct stat &TerarkFuseOper::getStat(terark::TFS_Colgroup_file_stat &tfs, struct stat &st) {
-
-    st.st_mode = tfs.mode;
-    st.st_atim.tv_sec = tfs.atime / ns_per_sec;
-    st.st_atim.tv_nsec = tfs.atime % ns_per_sec;
-    st.st_ctim.tv_sec = tfs.ctime / ns_per_sec;
-    st.st_ctim.tv_nsec = tfs.ctime % ns_per_sec;
-    st.st_mtim.tv_sec = tfs.mtime / ns_per_sec;
-    st.st_mtim.tv_nsec = tfs.mtime % ns_per_sec;
-    st.st_nlink = tfs.nlink;
-    st.st_blocks = tfs.blocks;
-    st.st_gid = tfs.gid;
-    st.st_uid = tfs.uid;
-    st.st_size = tfs.size;
-    st.st_ino = tfs.ino;
-    return st;
-}
-
-terark::llong TerarkFuseOper::createFile(const std::string &path, const mode_t &mod) {
-    struct timespec time;
-    auto ret = clock_gettime(CLOCK_REALTIME, &time);
-    //std::cout << "createFile:" << path << std::endl;
-    if (ret == -1)
-        return -errno;
-    TFS tfs;
-    tfs.path = path;
-    tfs.mode = mod;
-    tfs.atime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.ctime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.mtime = time.tv_sec * ns_per_sec + time.tv_nsec;
-    tfs.gid = getgid();
-    tfs.uid = getuid();
-    tfs.nlink = 1;
-    tfs.size = 0;
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    return ctx->upsertRow(rowBuilder.written());
-}
 
 void TerarkFuseOper::printStat(struct stat &st) {
 
@@ -376,71 +236,28 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
         ss << " S_IFDIR, ";
     return ss.str();
 }
-
-bool TerarkFuseOper::ifExist(const std::string &path) {
-
-    if (path == "/")
-        return true;
-    if (ctx->indexKeyExists(path_idx_id, path))
-        return true;
-
-    if (path.back() == '/') {
-        return ctx->indexKeyExists(path_idx_id, path.substr(0, path.size() - 1));
-    } else {
-        return ctx->indexKeyExists(path_idx_id, path + "/");
-    }
-}
-
-bool TerarkFuseOper::ifDict(const std::string &path) {
-
-    auto rid = getRid(path);
-    valvec<byte> row;
-    ctx->selectOneColumn(rid, tab->getColumnId("path"), &row);
-
-    fstring p(row.data());
-
-    //judge if the last char in p is '/'
-    return p.c_str()[p.size() - 1] == '/';
-}
-
 int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
 
-    if (ifExist(path))
+    if (tb.exist(path) != TfsBuffer::NOF)
         return -EEXIST;
-    //std::cout << "TerarkFuseOper::mkdir:" << path << std::endl;
-
-
     std::string path_str(path);
     if (path_str.back() != '/') {
         path_str.push_back('/');
     }
     mod |= S_IFDIR;
-    if (createFile(path_str, mod) < 0)
+    if (tb.insertToBuf(path_str,mod) < 0)
         return -EACCES;
-    //std::cout << "TerarkFuseOper::mkdir:" << printMode(mod) << std::endl;
     return 0;
 }
 
 int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
 
-    if (!ifExist(path))
+    auto ret = tb.exist(path);
+    if (ret == TfsBuffer::NOF)
         return -ENOENT;
-    auto rid = getRid(path);
-    if (rid < 0)
-        return -ENOENT;
-    struct stat st;
-    getFileMetainfo(rid,st);
-    if ( !S_ISDIR(st.st_mode))
+    if (ret == TfsBuffer::REG)
         return -ENOTDIR;
     return 0;
-}
-
-bool TerarkFuseOper::ifDictExist(const std::string &path) {
-
-    if (path.back() == '/')
-        return ctx->indexKeyExists(path_idx_id,path);
-    else
-        return ctx->indexKeyExists(path_idx_id,path + "/");
 }
 
 int TerarkFuseOper::unlink(const char *path) {
@@ -449,15 +266,8 @@ int TerarkFuseOper::unlink(const char *path) {
         //remove root is unaccess
         return -EACCES;
     }
-    if ( !ifExist(path))
-        return -ENOENT;
-    if ( ifDictExist(path))
-        return -EISDIR;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-    ctx->removeRow(rid);
-    return 0;
+    auto ret = tb.release(path);
+    return ret ?0:-ENOENT;
 }
 
 int TerarkFuseOper::rmdir(const char *path) {
@@ -466,190 +276,55 @@ int TerarkFuseOper::rmdir(const char *path) {
         //remove root is unaccess
         return -EACCES;
     }
-    if ( !ifExist(path)) {
+    auto ret = tb.exist(path);
+    if (ret == TfsBuffer::REG)
+        return -ENOTDIR;
+    if (ret == false){
         return -ENOENT;
     }
-    if ( !ifDictExist(path)) {
-        return -ENOTDIR;
-    }
-    auto rid = getRid(path);
-    if ( rid < 0){
-        return -EACCES;
-    }
-    ctx->removeRow(rid);
+    tb.remove(path);
     return 0;
 }
 
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
     //has bug!!!
     //std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
-    if ( !ifExist(path))
+    if ( false == tb.exist(path))
         return -ENOENT;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-    updateMode(rid,mod);
-    updateCtime(rid);
     return 0;
-}
-
-bool TerarkFuseOper::updateMode(terark::llong rid, const mode_t &mod) {
-
-    assert(rid >= 0);
-    tab->updateColumn(rid,file_mode_id,Schema::fstringOf(&mod));
-    return true;
 }
 
 int TerarkFuseOper::rename(const char *old_path, const char *new_path) {
 
-
-    if ( !ifExist(old_path))
-        return -ENOENT;
-    if ( ifExist(new_path))
-        return -EEXIST;
-    if (strcmp(old_path,new_path) == 0)
-        return 0;
-    auto rid = getRid(old_path);
-    if (rid < 0)
-        return -ENOENT;
-
-    TFS tfs;
-    valvec<byte> row;
-    ctx->getValue(rid,&row);
-    tfs.decode(row);
-    tfs.path = new_path;
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    auto ret = ctx->upsertRow(rowBuilder.written());
-    if (ret < 0 )
-        return -EACCES;
-    ctx->removeRow(rid);
     return 0;
 }
 
 int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
-    //std::cout << "TerarkFuseOper::chown:" << path << std::endl;
-    if ( !ifExist(path))
-        return -ENOENT;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-
-    tab->updateColumn(rid,file_uid_id,Schema::fstringOf(&owner));
-    tab->updateColumn(rid,file_gid_id,Schema::fstringOf(&group));
-    updateCtime(rid);
     return 0;
 }
 
 int TerarkFuseOper::truncate(const char *path, off_t size) {
 
-    if ( size < 0)
-        return -EINVAL;
-    if (!ifExist(path))
-        return -ENOENT;
-    if (ifDictExist(path))
-        return -EISDIR;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-    valvec<byte> row_data;
-    ctx->getValue(rid, &row_data);
-
-    TFS tfs;
-    tfs.decode(row_data);
-
-
-    tfs.content.resize(size,'\0');
-    tfs.size = tfs.content.size();
-
-    terark::NativeDataOutput<terark::AutoGrownMemIO> rowBuilder;
-    rowBuilder.rewind();
-    rowBuilder << tfs;
-    rid = ctx->upsertRow(rowBuilder.written());
-    if (rid < 0)
-        return -EACCES;
-    updateCtime(rid);
-    updateMtime(rid);
     return 0;
 }
 
 int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
 
-    if ( !ifExist(path))
-        return -ENOENT;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-    uint64_t temp_atime;
-    uint64_t temp_mtime;
-
-    if ( tb == NULL) {
-        temp_mtime = temp_atime = time(NULL);
-    }
-    else{
-        temp_atime = tb->actime;
-        temp_mtime = tb->modtime;
-    }
-    temp_atime *= ns_per_sec;
-    temp_mtime *= ns_per_sec;
-    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&temp_atime));
-
-    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&temp_mtime));
     return 0;
 }
 
 int TerarkFuseOper::utimens(const char *path, const timespec tv[2]) {
 
-    if ( !ifExist(path))
-        return -ENOENT;
-    auto rid = getRid(path);
-    if ( rid < 0)
-        return -ENOENT;
-    uint64_t temp_atime = tv[0].tv_sec * ns_per_sec + tv[0].tv_nsec;
-    uint64_t temp_mtime = tv[1].tv_sec * ns_per_sec + tv[1].tv_nsec;
-    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&temp_atime));
-    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&temp_mtime));
     return 0;
 }
-
-bool TerarkFuseOper::updateCtime(terark::llong rid, uint64_t ctime) {
-
-    assert(rid >= 0);
-    tab->updateColumn(rid,file_ctime_id,Schema::fstringOf(&ctime));
-    return true;
-}
-bool TerarkFuseOper::updateMtime(terark::llong rid, uint64_t mtime) {
-
-    assert(rid >= 0);
-    tab->updateColumn(rid,file_mtime_id,Schema::fstringOf(&mtime));
-    return true;
-}bool TerarkFuseOper::updateAtime(terark::llong rid, uint64_t atime) {
-
-    assert(rid >= 0);
-    tab->updateColumn(rid,file_atime_id,Schema::fstringOf(&atime));
-    return true;
-}
-
-uint64_t TerarkFuseOper::getTime() {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME,&ts);
-    return ts.tv_sec * ns_per_sec + ts.tv_nsec;
-}
-
 int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
-    if ( !ifExist(path))
-        return -ENOENT;
-    if ( ifDictExist(path))
-        return -EISDIR;
     return 0;
 }
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
-    if (false == ifExist(path))
+    if (false == tb.exist(path))
         return -ENOENT;
-    if (ifDict(path))
-        return -EISDIR;
+    tb.release(path);
     return 0;
 }

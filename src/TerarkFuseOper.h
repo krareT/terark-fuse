@@ -23,24 +23,7 @@
 class TerarkFuseOper {
 private:
 
-    terark::db::CompositeTablePtr tab;
-    terark::db::DbContextPtr ctx;
-    uint32_t path_idx_id;
-    size_t file_stat_cg_id;
-    size_t file_mode_id;
-    size_t file_gid_id;
-    size_t file_uid_id;
-    size_t file_atime_id;
-    size_t file_mtime_id;
-    size_t file_ctime_id;
-    size_t file_content_id;
-    long long getRid(const std::string &path);
-
-    bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
-
-    struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
-
-    terark::llong createFile(const std::string &path, const mode_t &mod);
+    TfsBuffer tb;
 
     void printStat(struct stat &st);
 
@@ -48,14 +31,6 @@ private:
 
     std::string printMode(mode_t mode);
 
-    bool ifDict(const std::string &path);
-    bool ifDictExist(const std::string &path);
-    bool ifExist(const std::string &path);
-    bool updateMode(terark::llong rid, const mode_t &mod);
-    static uint64_t getTime(void);
-    bool updateCtime(terark::llong rid,uint64_t ctime = getTime());
-    bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
-    bool updateAtime(terark::llong rid,uint64_t atime = getTime());
 
 
 public:
@@ -64,8 +39,6 @@ public:
     TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
-        tab->safeStopAndWaitForCompress();
-        tab = NULL;
     }
 
     int getattr(const char *, struct stat *);

@@ -14,32 +14,36 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath):tb(dbpath){
 
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
-    if (tb.exist(path) != false)
+    if (tb.exist(path) != TfsBuffer::FILE_TYPE::NOF)
+        return -EEXIST;
     if (tb.insertToBuf(path, mod | S_IFREG) < 0)
-        return -EACCES;
+        return -ENOENT;
     return 0;
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 
+    std::cout << "tfo->getattr:" << path << std::endl;
     if (strcmp(path,"/terark-compact") == 0){
         tb.compact();
         return -EBADF;
     }
     memset(stbuf, 0, sizeof(struct stat));
-    if ( tb.exist(path) == TfsBuffer::NOF)
+    auto ret = tb.exist(path);
+    if ( ret == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
-    tb.getFileInfo(path,*stbuf);
+    if (false == tb.getFileInfo(path,*stbuf))
+        return  -ENOENT;
     return 0;
 }
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
 
     auto ret = tb.exist(path);
-    if (ret == TfsBuffer::NOF) {
+    if (ret == TfsBuffer::FILE_TYPE::NOF) {
         return -ENOENT;
     }
-    if (ret == TfsBuffer::DIR){
+    if (ret == TfsBuffer::FILE_TYPE::DIR){
         return -EISDIR;
     }
     if (tb.loadToBuf(path) < 0)
@@ -51,7 +55,7 @@ int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset,
 
     //std::cout << "TerarkFuseOper::read:" << path << std::endl;
     //check if exist
-    if (tb.exist(path) == TfsBuffer::NOF)
+    if (tb.exist(path) == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
 
     tb.read(path,buf,size,offset);
@@ -62,48 +66,53 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi) {
 
     auto ret = tb.exist(path);
-    if ( ret == TfsBuffer::NOF)
+    if ( ret == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
-    if ( ret != TfsBuffer::DIR)
+    if ( ret != TfsBuffer::FILE_TYPE::DIR)
         return -ENOTDIR;
-    //std::cout << "TerarkFuseOper::readdir:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-    IndexIteratorPtr path_iter = tb.getIter();
-    valvec<byte> ret_path;
-    llong rid;
-    std::string path_str = path;
-    auto path_len = path_str.size();
-    if (path_str.back() != '/')
-        path_str.push_back('/');
+//    IndexIteratorPtr path_iter = tb.getIter();
+//    valvec<byte> ret_path;
+//    llong rid;
+//    std::string path_str = path;
+//    auto path_len = path_str.size();
+//    if (path_str.back() != '/')
+//        path_str.push_back('/');
+//
+//    int suc = path_iter->seekLowerBound( path_str, &rid,&ret_path);
+//    assert(suc >= 0);
+//
+//    bool not_increment_flag = false;
+//
+//    while(  not_increment_flag  || path_iter->increment(&rid, &ret_path)){
+//
+//        if ( memcmp(ret_path.data(),path,path_len) != 0)
+//            break;
+//        //find first '/' after path
+//        auto pos = std::find(ret_path.begin() + path_str.size(),ret_path.end(),'/');
+//        not_increment_flag = pos != ret_path.end();
+//        if ( not_increment_flag) {            //reg file
+//            *pos = 0;
+//        }
+//        else {            //dir file
+//            ret_path.push_back(0);
+//        }
+//        filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
+//        if (not_increment_flag) {
+//            *pos = '0';
+//
+//            auto _ret = path_iter->seekLowerBound(fstring(ret_path.data()), &rid, &ret_path);
+//            if (_ret < 0)
+//                break;
+//        }
+//    }
 
-    int suc = path_iter->seekLowerBound( path_str, &rid,&ret_path);
-    assert(suc == 0);
-
-    bool not_increment_flag = false;
-
-    while(  not_increment_flag  || path_iter->increment(&rid, &ret_path)){
-
-        if ( memcmp(ret_path.data(),path,path_len) != 0)
-            break;
-        //find first '/' after path
-        auto pos = std::find(ret_path.begin() + path_str.size(),ret_path.end(),'/');
-        not_increment_flag = pos != ret_path.end();
-        if ( not_increment_flag) {            //reg file
-            *pos = 0;
-        }
-        else {            //dir file
-            ret_path.push_back(0);
-        }
-        filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
-        if (not_increment_flag) {
-            *pos = '0';
-            ret = path_iter->seekLowerBound(fstring(ret_path.data()), &rid, &ret_path);
-            if (ret < 0)
-                break;
-        }
+    auto iter = tb.getDirIter(path);
+    std::string file_name;
+    while(tb.getNextFile(iter,path,file_name)){
+        filler(buf,file_name.c_str(),NULL,0);
     }
-
     return 0;
 }
 
@@ -114,7 +123,7 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
 
     valvec<byte> row_data;
     //check if exist
-    if (!tb.exist(path))
+    if (tb.exist(path) == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
     return tb.write(path,buf,size,offset);
 }
@@ -238,7 +247,7 @@ std::string TerarkFuseOper::printMode(mode_t mode) {
 }
 int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
 
-    if (tb.exist(path) != TfsBuffer::NOF)
+    if (tb.exist(path) != TfsBuffer::FILE_TYPE::NOF)
         return -EEXIST;
     std::string path_str(path);
     if (path_str.back() != '/') {
@@ -253,9 +262,9 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
 int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
 
     auto ret = tb.exist(path);
-    if (ret == TfsBuffer::NOF)
+    if (ret == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
-    if (ret == TfsBuffer::REG)
+    if (ret == TfsBuffer::FILE_TYPE::REG)
         return -ENOTDIR;
     return 0;
 }
@@ -277,9 +286,9 @@ int TerarkFuseOper::rmdir(const char *path) {
         return -EACCES;
     }
     auto ret = tb.exist(path);
-    if (ret == TfsBuffer::REG)
+    if (ret == TfsBuffer::FILE_TYPE::REG)
         return -ENOTDIR;
-    if (ret == false){
+    if (ret == TfsBuffer::FILE_TYPE::NOF){
         return -ENOENT;
     }
     tb.remove(path);
@@ -289,7 +298,7 @@ int TerarkFuseOper::rmdir(const char *path) {
 int TerarkFuseOper::chmod(const char *path, mode_t mod) {
     //has bug!!!
     //std::cout << "TerarkFuseOper::chmod:" << path << std::endl;
-    if ( false == tb.exist(path))
+    if ( TfsBuffer::FILE_TYPE::NOF == tb.exist(path))
         return -ENOENT;
     return 0;
 }
@@ -304,8 +313,7 @@ int TerarkFuseOper::chown(const char *path, uint64_t owner,uint64_t group) {
 }
 
 int TerarkFuseOper::truncate(const char *path, off_t size) {
-
-    return 0;
+    return tb.truncate(path,size);
 }
 
 int TerarkFuseOper::utime(const char *path, struct utimbuf *tb) {
@@ -323,7 +331,7 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
-    if (false == tb.exist(path))
+    if (TfsBuffer::FILE_TYPE::NOF == tb.exist(path))
         return -ENOENT;
     tb.release(path);
     return 0;

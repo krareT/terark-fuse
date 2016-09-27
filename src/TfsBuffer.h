@@ -16,8 +16,9 @@ struct FileInfo{
     std::atomic_bool update_flag;
     tbb::reader_writer_lock rw_lock;
     FileInfo():update_flag{false}{
+        ref.store(0,std::memory_order_relaxed);
     }
-    std::atomic<uint32_t > ref;
+    std::atomic<int32_t > ref;
 };
 class TfsBuffer {
 
@@ -35,7 +36,12 @@ private:
     size_t file_ctime_id;
     size_t file_content_id;
     terark::db::CompositeTablePtr tab;
+    void getSataFromTfs(terark::TFS&,struct stat &st);
+    void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
 public:
+    enum class FILE_TYPE {
+        NOF,DIR, REG,
+    };
     TfsBuffer(const char *db_path);
 
     //the only method to create new element to buf
@@ -46,7 +52,9 @@ public:
 
     terark::llong release(const std::string &);
 
-    uint8_t exist(const std::string &);
+    int truncate(const std::string&,size_t new_size);
+    int readdir(const std::string&);
+    FILE_TYPE exist(const std::string &);
 
     int read(const std::string &, char *buf, size_t size, size_t off);
 
@@ -56,7 +64,8 @@ public:
 
     void compact();
 
-    terark::db::IndexIteratorPtr getIter();
+    bool getNextFile(terark::db::IndexIteratorPtr& iip, const std::string &dir,std::string &file_name);
+    terark::db::IndexIteratorPtr getDirIter(const std::string & path);
 
     bool remove(const std::string &path);
 
@@ -64,16 +73,14 @@ public:
         tab->safeStopAndWaitForCompress();
     }
 
-    enum {
-        DIR, REG,NOF
-    };
+
 private:
     uint64_t getTime();
 
     long long getRid(const std::string &path);
 
-    bool existInBuf(const std::string &);
+    FILE_TYPE existInBuf(const std::string &);
 
-    bool existInTerark(const std::string &);
+    FILE_TYPE existInTerark(const std::string &);
 };
 #endif //TERARK_FUSE_TFSBUFFER_H

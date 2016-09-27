@@ -70,6 +70,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         return -ENOENT;
     if ( ret != TfsBuffer::FILE_TYPE::DIR)
         return -ENOTDIR;
+    std::cout << "readdir path:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
 //    IndexIteratorPtr path_iter = tb.getIter();

@@ -53,7 +53,7 @@ public:
     terark::llong release(const std::string &);
 
     int truncate(const std::string&,size_t new_size);
-    int readdir(const std::string&);
+
     FILE_TYPE exist(const std::string &);
 
     int read(const std::string &, char *buf, size_t size, size_t off);

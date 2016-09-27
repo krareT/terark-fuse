@@ -112,6 +112,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     std::string file_name;
     while(tb.getNextFile(iter,path,file_name)){
         filler(buf,file_name.c_str(),NULL,0);
+        std::cout << "readdir:" << file_name.c_str() << std::endl;
     }
     return 0;
 }

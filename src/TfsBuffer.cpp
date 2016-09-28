@@ -319,7 +319,9 @@ int TfsBuffer::truncate(const std::string &path,size_t new_size) {
 
 bool TfsBuffer::getNextFile(terark::db::IndexIteratorPtr& iip, const std::string &dir,std::string &file_name) {
 
-    assert(iip != nullptr);
+    assert(iip != nullptr);//
+
+    assert(dir.back() == '/');//
     terark::llong rid;
     terark::valvec<terark::byte> ret_path;
     auto ret = iip->increment(&rid, &ret_path);
@@ -330,9 +332,9 @@ bool TfsBuffer::getNextFile(terark::db::IndexIteratorPtr& iip, const std::string
         if (iter != ret_path.end()){
             terark::valvec<terark::byte> temp_vec;
             iip->seekUpperBound(ret_path, &rid, &temp_vec);
-            *iter = '\0';
+            ret_path.resize(iter - ret_path.begin());
         }
-        file_name = reinterpret_cast<char*>(ret_path.data() + dir.size());
+        file_name = std::string(ret_path.begin() + dir.size(),ret_path.end());
         std::cout << "getNextFile:" << file_name << std::endl;
         return true;
     }

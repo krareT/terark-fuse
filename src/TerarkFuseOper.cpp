@@ -70,44 +70,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         return -ENOENT;
     if ( ret != TfsBuffer::FILE_TYPE::DIR)
         return -ENOTDIR;
-    std::cout << "readdir path:" << path << std::endl;
     filler(buf, ".", NULL, 0);
     filler(buf, "..", NULL, 0);
-//    IndexIteratorPtr path_iter = tb.getIter();
-//    valvec<byte> ret_path;
-//    llong rid;
-//    std::string path_str = path;
-//    auto path_len = path_str.size();
-//    if (path_str.back() != '/')
-//        path_str.push_back('/');
-//
-//    int suc = path_iter->seekLowerBound( path_str, &rid,&ret_path);
-//    assert(suc >= 0);
-//
-//    bool not_increment_flag = false;
-//
-//    while(  not_increment_flag  || path_iter->increment(&rid, &ret_path)){
-//
-//        if ( memcmp(ret_path.data(),path,path_len) != 0)
-//            break;
-//        //find first '/' after path
-//        auto pos = std::find(ret_path.begin() + path_str.size(),ret_path.end(),'/');
-//        not_increment_flag = pos != ret_path.end();
-//        if ( not_increment_flag) {            //reg file
-//            *pos = 0;
-//        }
-//        else {            //dir file
-//            ret_path.push_back(0);
-//        }
-//        filler(buf, reinterpret_cast<char*>(ret_path.data() + path_str.size()),NULL,0);
-//        if (not_increment_flag) {
-//            *pos = '0';
-//
-//            auto _ret = path_iter->seekLowerBound(fstring(ret_path.data()), &rid, &ret_path);
-//            if (_ret < 0)
-//                break;
-//        }
-//    }
     std::string path_str = path;
     if (path_str.back() != '/')
         path_str.push_back('/');
@@ -276,12 +240,11 @@ int TerarkFuseOper::opendir(const char *path, struct fuse_file_info *ffi) {
 }
 
 int TerarkFuseOper::unlink(const char *path) {
-    //std::cout << "TerarkFuseOper::unlink:" << path << std::endl;
     if ( path == "/"){
         //remove root is unaccess
         return -EACCES;
     }
-    auto ret = tb.release(path);
+    auto ret = tb.remove(path);
     return ret ?0:-ENOENT;
 }
 

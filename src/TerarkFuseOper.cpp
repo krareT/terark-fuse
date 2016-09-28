@@ -108,10 +108,13 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 //                break;
 //        }
 //    }
+    std::string path_str = path;
+    if (path_str.back() != '/')
+        path_str.push_back('/');
 
-    auto iter = tb.getDirIter(path);
+    auto iter = tb.getDirIter(path_str);
     std::string file_name;
-    while(tb.getNextFile(iter,path,file_name)){
+    while(tb.getNextFile(iter,path_str,file_name)){
         filler(buf,file_name.c_str(),NULL,0);
         std::cout << "readdir:" << file_name.c_str() << std::endl;
     }
@@ -258,6 +261,7 @@ int TerarkFuseOper::mkdir(const char *path, mode_t mod) {
     mod |= S_IFDIR;
     if (tb.insertToBuf(path_str,mod) < 0)
         return -EACCES;
+    tb.release(path_str);
     return 0;
 }
 

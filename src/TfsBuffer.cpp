@@ -36,6 +36,7 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode) {
     info_ptr->ref++;
     info_ptr->update_flag.store(true);
     buf_map[path] = info_ptr;
+    std::cout << "Insert to buf:" << path << std::endl;
     return buf_map.find(path) != buf_map.end();
 }
 
@@ -327,10 +328,11 @@ bool TfsBuffer::getNextFile(terark::db::IndexIteratorPtr& iip, const std::string
         //find '/'
         auto iter = std::find(ret_path.begin() + dir.size(),ret_path.end(),'/');
         if (iter != ret_path.end()){
+            terark::valvec<terark::byte> temp_vec;
+            iip->seekUpperBound(ret_path, &rid, &temp_vec);
             *iter = '\0';
         }
         file_name = reinterpret_cast<char*>(ret_path.data() + dir.size());
-
         std::cout << "getNextFile:" << file_name << std::endl;
         return true;
     }

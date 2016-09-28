@@ -330,8 +330,9 @@ bool TfsBuffer::getNextFile(terark::db::IndexIteratorPtr& iip, const std::string
         //find '/'
         auto iter = std::find(ret_path.begin() + dir.size(),ret_path.end(),'/');
         if (iter != ret_path.end()){
-            terark::valvec<terark::byte> temp_vec;
-            iip->seekUpperBound(ret_path, &rid, &temp_vec);
+            (*iter)++;
+            terark::valvec<terark::byte> _temp_vec;
+            iip->seekUpperBound(ret_path, &rid, &_temp_vec);
             ret_path.resize(iter - ret_path.begin());
         }
         file_name = std::string(ret_path.begin() + dir.size(),ret_path.end());

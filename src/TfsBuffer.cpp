@@ -35,6 +35,10 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode) {
     info_ptr->tfs.size = 0;
     info_ptr->ref++;
     info_ptr->update_flag.store(true);
+    info_ptr->tfs.nlink = 0;
+    info_ptr->tfs.blocks = 0;
+    info_ptr->tfs.ino = 0;
+    
     buf_map[path] = info_ptr;
     std::cout << "Insert to buf:" << path << std::endl;
     return buf_map.find(path) != buf_map.end();
@@ -352,6 +356,6 @@ terark::db::IndexIteratorPtr TfsBuffer::getDirIter(const std::string &path) {
         path_str.push_back('/');
 
     int exact = path_iter->seekLowerBound( path_str, &rid,&ret_path);
-    assert(exact == 0);
+    assert(exact >= 0);
     return path_iter;
 }

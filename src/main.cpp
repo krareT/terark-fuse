@@ -1,5 +1,5 @@
 
-#define FUSE_USE_VERSION 29
+#define FUSE_USE_VERSION 26
 
 #include <fuse.h>
 #include <iostream>

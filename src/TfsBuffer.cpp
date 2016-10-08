@@ -194,6 +194,8 @@ void TfsBuffer::compact() {
 TfsBuffer::FILE_TYPE TfsBuffer::exist(const std::string &path) {
     if (path == "/")
         return FILE_TYPE::DIR;
+    if (path.c_str() == meta_path)
+        return FILE_TYPE::REG;
     if ( existInBuf(path) == FILE_TYPE::REG) {
         return FILE_TYPE::REG;
     }
@@ -206,7 +208,10 @@ bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
 
     assert(exist(path) != TfsBuffer::FILE_TYPE::NOF);
 
-
+    if ( path.c_str() == meta_path){
+        st.st_mode = 0666 | S_IFREG;
+        return true;
+    }
     auto iter = buf_map.find(path);
     if (iter != buf_map.end()){
 

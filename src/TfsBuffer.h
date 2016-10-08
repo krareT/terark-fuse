@@ -38,6 +38,8 @@ private:
     terark::db::CompositeTablePtr tab;
     void getSataFromTfs(terark::TFS&,struct stat &st);
     void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
+
+    const char *meta_path = "/terark-state";
 public:
     enum class FILE_TYPE {
         NOF,DIR, REG,
@@ -72,7 +74,6 @@ public:
     ~TfsBuffer() {
         tab->safeStopAndWaitForCompress();
     }
-
 
 private:
     uint64_t getTime();

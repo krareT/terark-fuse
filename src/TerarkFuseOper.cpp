@@ -26,7 +26,7 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
     std::cout << "tfo->getattr:" << path << std::endl;
     if (strcmp(path,"/terark-compact") == 0){
         tb.compact();
-        return -EBADF;
+        return -ENOENT;
     }
     memset(stbuf, 0, sizeof(struct stat));
     auto ret = tb.exist(path);

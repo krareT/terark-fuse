@@ -26,8 +26,6 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
-    std::cout << "TerarkFuseOper::getattr:" << path << std::endl;
-
     auto ret = tb.exist(path);
     if ( ret == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;

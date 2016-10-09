@@ -173,6 +173,9 @@ TfsBuffer::TfsBuffer(const char *db_path) {
     insertToBuf(terark_state,0666 | S_IFREG);
     release(terark_state);
     loadToBuf(terark_state);
+    buf_map[terark_state]->tfs.content = "Hello Terark!\n";
+    buf_map[terark_state]->tfs.size = buf_map[terark_state]->tfs.content.size();
+
 }
 
 size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
@@ -180,8 +183,9 @@ size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, s
 
     tbb::reader_writer_lock::scoped_lock _lock(buf_map[path]->rw_lock);
     terark::TFS &tfs = buf_map[path]->tfs;
-    if ( path.c_str() == terark_state){
-
+    if ( strcmp(path.c_str(),terark_state) == 0){
+        writeToTerarkState(buf,size);
+        return size;
     }
     buf_map[path]->update_flag.store(true,std::memory_order_relaxed);
     if (offset + size > tfs.content.size()) {
@@ -380,5 +384,9 @@ TfsBuffer::~TfsBuffer() {
 }
 
 void TfsBuffer::writeToTerarkState(const char *buf, const size_t size) {
-
+    std::cout << "Write To Terark State : " << buf << std::endl;
+    if ( strncmp(buf,"compact",7) == 0){
+        std::cout << "Compact!" << std::endl;
+        compact();
+    }
 }

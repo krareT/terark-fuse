@@ -31,7 +31,7 @@ private:
 
     std::string printMode(mode_t mode);
 
-
+    const uint32_t content_max_len = 67108864;//64M
 
 public:
     static uint64_t ns_per_sec;

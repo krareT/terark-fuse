@@ -38,8 +38,7 @@ private:
     terark::db::CompositeTablePtr tab;
     void getSataFromTfs(terark::TFS&,struct stat &st);
     void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
-
-    terark::TFS terark_state_tfs;
+    const char *terark_state = "/terark-state";
 public:
     enum class FILE_TYPE {
         NOF,DIR, REG,
@@ -47,7 +46,7 @@ public:
     TfsBuffer(const char *db_path);
 
     //the only method to create new element to buf
-    terark::llong insertToBuf(const std::string &path, mode_t mode);
+    terark::llong insertToBuf(const std::string &path, mode_t mode,bool update = true);
 
     //load element from terark to buf
     terark::llong loadToBuf(const std::string &path);
@@ -71,9 +70,7 @@ public:
 
     bool remove(const std::string &path);
 
-    ~TfsBuffer() {
-        tab->safeStopAndWaitForCompress();
-    }
+    ~TfsBuffer();
 
 private:
     uint64_t getTime();

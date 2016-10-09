@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8)
 project(terark_fuse)
 
-set(TERARKDB_PATH ~/Documents/pkg/terark-db-Linux-x86_64-g++-5.3-bmi2-1/)
+set(TERARKDB_PATH /home/terark/Documents/pkg/terark-db-Linux-x86_64-g++-5.3-bmi2-1/)
 
 
 include_directories(${TERARKDB_PATH}/include)

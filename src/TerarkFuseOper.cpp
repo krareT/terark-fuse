@@ -47,7 +47,7 @@ int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
         return -EISDIR;
     }
     if (tb.loadToBuf(path) < 0)
-        return -EACCES;
+        return -ENOENT;
     return 0;
 }
 
@@ -92,8 +92,9 @@ int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t 
     //std::cout << "TerarkFuseOper::write:" << path << std::endl;
     //std::cout << "TerarkFuseOper::write:flag:" << printFlag(ffi->flags) << std::endl;
 
-    valvec<byte> row_data;
     //check if exist
+    if (size + offset >= content_max_len)
+        return -EIO;
     if (tb.exist(path) == TfsBuffer::FILE_TYPE::NOF)
         return -ENOENT;
     return tb.write(path,buf,size,offset);

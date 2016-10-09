@@ -14,37 +14,16 @@
 #include <thread>
 #include <terark/db/db_conf.hpp>
 #include "tfs.h"
-#include "TfsBuffer.h"
 #include <algorithm>
-#include <sys/types.h>
-#include <tbb/enumerable_thread_specific.h>
+#include <tbb/concurrent_unordered_set.h>
 #include <mutex>
-#include <boost/thread/tss.hpp>
+#include "TfsBuffer.h"
+
+
 class TerarkFuseOper {
 private:
 
-    terark::db::CompositeTablePtr tab;
-    terark::db::DbContextPtr ctx;
-    std::recursive_mutex mtx_ctx;
-    //tbb::enumerable_thread_specific<terark::db::DbContext*> ctx_local;
-    tbb::concurrent_unordered_map<pid_t ,terark::db::DbContext*> ctx_map;
-    terark::db::DbContext * getThreadSafeCtx();
-    uint32_t path_idx_id;
-    size_t file_stat_cg_id;
-    size_t file_mode_id;
-    size_t file_gid_id;
-    size_t file_uid_id;
-    size_t file_atime_id;
-    size_t file_mtime_id;
-    size_t file_ctime_id;
-    size_t file_content_id;
-    long long getRid(const std::string &path);
-
-    bool getFileMetainfo(const terark::llong rid, struct stat &stbuf);
-    bool getFileMetainfo(terark::TFS &, struct stat &stbuf);
-    struct stat &getStat(terark::TFS_Colgroup_file_stat &, struct stat &st);
-
-    terark::llong createFile(const std::string &path, const mode_t &mod);
+    TfsBuffer tb;
 
     void printStat(struct stat &st);
 
@@ -52,34 +31,14 @@ private:
 
     std::string printMode(mode_t mode);
 
-    bool ifDict(const std::string &path);
-    bool ifDictExist(const std::string &path);
-    bool ifExist(const std::string &path);
-    bool updateMode(terark::llong rid, const mode_t &mod);
-    static uint64_t getTime(void);
-    bool updateCtime(terark::llong rid,uint64_t ctime = getTime());
-    bool updateMtime(terark::llong rid,uint64_t mtime = getTime());
-    bool updateAtime(terark::llong rid,uint64_t atime = getTime());
-    bool updateAtime(const char *path, uint64_t atime, terark::TFS *tfs);
-
-
-    TfsBuffer tfsBuffer;
-    //typedef tbb::enumerable_thread_specific< terark::db::DbContext*> ThreadSafeCtx;
-//    ThreadSafeCtx threadSafeCtx;
-    //terark::db::DbContext * getThreadSafeCtx();
-    terark::llong writeToTerark(terark::TFS &tfs);
-//    std::unordered_map<std::string,terark::TFS*> tfs_map;
-    terark::TFS *getMyTfs(const char *path, uint64_t fh);
-    bool setMyTfs(terark::TFS *tfs,uint64_t& fh);
+    const uint32_t content_max_len = 67108864;//64M
+    
 public:
     static uint64_t ns_per_sec;
 
     TerarkFuseOper(const char *dbpath);
 
     ~TerarkFuseOper() {
-        tab->compact();
-        tab->safeStopAndWaitForFlush();
-        tab = NULL;
     }
 
     int getattr(const char *, struct stat *);

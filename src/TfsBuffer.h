@@ -1,82 +1,85 @@
-//
-// Created by terark on 9/9/16.
-//
+
 
 #ifndef TERARK_FUSE_TFSBUFFER_H
 #define TERARK_FUSE_TFSBUFFER_H
-
+#include<tbb/concurrent_unordered_map.h>
+#include <tbb/reader_writer_lock.h>
+#include <mutex>
 #include "tfs.h"
-#include <atomic>
-#include <tbb/concurrent_unordered_map.h>
-#include <iostream>
-#include <tbb/spin_rw_mutex.h>
+#include <cstdio>
 
-struct FileObj{
-    terark::TFS *tfs;
-    std::atomic<int32_t> ref;
-    FileObj():tfs(nullptr){
+struct FileInfo{
 
-        ref.store(0);
+    terark::TFS tfs;
+    std::atomic_bool update_flag;
+    tbb::reader_writer_lock rw_lock;
+    FileInfo():update_flag{false}{
+        ref.store(0,std::memory_order_relaxed);
     }
-    ~FileObj(){
-        delete tfs;
-    }
+    std::atomic<int32_t > ref;
 };
-
 class TfsBuffer {
 
 private:
-    tbb::concurrent_unordered_map<std::string, FileObj*> buffer_map;
+    terark::db::CompositeTablePtr tab;
+    tbb::concurrent_unordered_map<std::string, std::shared_ptr<FileInfo>> buf_map;
+    std::recursive_mutex ctx_mtx;
+    terark::db::DbContextPtr ctx;
+    uint32_t path_idx_id;
+    size_t file_stat_cg_id;
+    size_t file_mode_id;
+    size_t file_gid_id;
+    size_t file_uid_id;
+    size_t file_atime_id;
+    size_t file_mtime_id;
+    size_t file_ctime_id;
+    size_t file_content_id;
+    void getSataFromTfs(terark::TFS&,struct stat &st);
+    void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
+    const char *terark_state = "/terark-state";
 public:
+    enum class FILE_TYPE {
+        NOF,DIR, REG,
+    };
 
-    bool insert(const char *path, const terark::llong &rid, terark::db::DbContextPtr ctx) {
-        assert(rid >= 0);
-        if (buffer_map.count(path) > 0)
-            return true;
+    TfsBuffer(const char *db_path);
 
-        terark::valvec<terark::byte> row;
+    //the only method to create new element to buf
+    terark::llong insertToBuf(const std::string &path, mode_t mode,bool update = true);
 
-        terark::TFS *tfs = new terark::TFS;
-        ctx->getValue(rid, &row);
-        tfs->decode(row);
-        buffer_map[path] = new FileObj;
-        buffer_map[path]->tfs = tfs;
-        return true;
-    }
+    //load element from terark to buf
+    terark::llong loadToBuf(const std::string &path);
 
-    bool release(const char *path) {
+    terark::llong release(const std::string &);
 
-        if ( buffer_map.count(path) == 0)
-            return false;
-        buffer_map[path]->ref--;
-        std::cout << "tfsBuffer:release:" << path << ":" << buffer_map[path]->ref <<std::endl;
-        if (buffer_map[path]->ref.load(std::memory_order_relaxed) <= 0) {
+    int truncate(const std::string&,size_t new_size);
 
-            delete buffer_map[path];
-            buffer_map.unsafe_erase(path);
-            return true;
-        } else {
-            return false;
-        }
-    }
-    terark::TFS *getTFS(const char *path){
-        auto find = buffer_map.find(path);
-        if ( find == buffer_map.end())
-            return NULL;
-        find->second->ref++;
-        std::cout << "tfsBuffer:get:" << path << ":" << find->second->ref.load(std::memory_order_relaxed) <<std::endl;
-        return find->second->tfs;
-    }
-    ~TfsBuffer(){
+    FILE_TYPE exist(const std::string &);
 
-        for(auto &each : buffer_map){
-            delete each.second;
-        }
-        buffer_map.clear();
-    }
-    TfsBuffer(){
-        buffer_map.clear();
-    }
+    int read(const std::string &, char *buf, size_t size, size_t off);
+
+    size_t write(const std::string &path, const char *buf, size_t size, size_t offset);
+
+    bool getFileInfo(const std::string &path, struct stat &st);
+
+    void compact();
+
+    bool getNextFile(terark::db::IndexIteratorPtr& iip, const std::string &dir,std::string &file_name);
+    terark::db::IndexIteratorPtr getDirIter(const std::string & path);
+
+    bool remove(const std::string &path);
+
+    ~TfsBuffer();
+
+private:
+    uint64_t getTime();
+
+    long long getRid(const std::string &path);
+
+    FILE_TYPE existInBuf(const std::string &);
+
+    FILE_TYPE existInTerark(const std::string &);
+
+    void writeToTerarkState(const char *buf,const size_t size);
 };
-
 #endif //TERARK_FUSE_TFSBUFFER_H

@@ -1,5 +1,5 @@
 
-#define FUSE_USE_VERSION 29
+#define FUSE_USE_VERSION 26
 
 #include <fuse.h>
 #include <iostream>
@@ -46,7 +46,8 @@ int terark_utimens(const char *path, const struct timespec tv[2]) { return g_TFO
 
 int terark_flush(const char *path, struct fuse_file_info *ffi) { return g_TFO->flush(path,ffi);}
 
-int terark_release(const char *path, struct fuse_file_info *ffi){ return g_TFO->release(path,ffi);}
+int terark_release(const char *path, struct fuse_file_info *ffi){return g_TFO->release(path,ffi);}
+
 void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     memset(&fo, 0, sizeof(fo));
     fo.read = terark_read;

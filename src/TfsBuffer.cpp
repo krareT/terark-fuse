@@ -135,7 +135,8 @@ long long TfsBuffer::getRid(const std::string &path) {
 }
 
 TfsBuffer::TfsBuffer(const char *db_path) {
-    tab = terark::db::CompositeTable::open(db_path);
+//    tab = terark::db::CompositeTable::open(db_path);
+    tab = terark::TFS::openTable(db_path, true);
     assert(tab != nullptr);
     ctx = tab->createDbContext();
     assert(ctx != nullptr);

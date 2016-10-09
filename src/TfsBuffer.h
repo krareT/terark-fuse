@@ -23,6 +23,7 @@ struct FileInfo{
 class TfsBuffer {
 
 private:
+    terark::db::CompositeTablePtr tab;
     tbb::concurrent_unordered_map<std::string, std::shared_ptr<FileInfo>> buf_map;
     std::recursive_mutex ctx_mtx;
     terark::db::DbContextPtr ctx;
@@ -35,7 +36,6 @@ private:
     size_t file_mtime_id;
     size_t file_ctime_id;
     size_t file_content_id;
-    terark::db::CompositeTablePtr tab;
     void getSataFromTfs(terark::TFS&,struct stat &st);
     void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
     const char *terark_state = "/terark-state";

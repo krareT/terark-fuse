@@ -40,7 +40,6 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool u
     info_ptr->tfs.ino = 0;
     
     buf_map[path] = info_ptr;
-    std::cout << "Insert to buf:" << path << std::endl;
     return buf_map.find(path) != buf_map.end();
 }
 terark::llong TfsBuffer::release(const std::string &path) {
@@ -49,7 +48,7 @@ terark::llong TfsBuffer::release(const std::string &path) {
     auto fi_ptr = buf_map[path];
     tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
     fi_ptr->ref --;
-    std::cout << "release:" << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
+    //std::cout << "release:" << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
     if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
 
             buf_map.unsafe_erase(path);
@@ -77,7 +76,7 @@ int TfsBuffer::read(const std::string &path, char *buf, size_t size, size_t offs
         }
         ptr->tfs.atime = getTime();
     }
-    return 0;
+    return size;
 }
 
 uint64_t TfsBuffer::getTime() {
@@ -135,7 +134,7 @@ long long TfsBuffer::getRid(const std::string &path) {
 }
 
 TfsBuffer::TfsBuffer(const char *db_path) {
-//    tab = terark::db::CompositeTable::open(db_path);
+    assert(std::cout << "Assert is open!" << std::endl);
     tab = terark::TFS::openTable(db_path, true);
     assert(tab != nullptr);
     ctx = tab->createDbContext();
@@ -169,10 +168,11 @@ TfsBuffer::TfsBuffer(const char *db_path) {
         assert(getRid("/") >= 0);
     }
 
-    assert(FILE_TYPE::NOF == exist(terark_state));
     //release it in the destructor func;
-    insertToBuf(terark_state,0666 | S_IFREG);
-    release(terark_state);
+    if ( exist(terark_state) == FILE_TYPE::NOF) {
+        insertToBuf(terark_state, 0666 | S_IFREG);
+        release(terark_state);
+    }
     loadToBuf(terark_state);
     buf_map[terark_state]->tfs.content = "Hello Terark!\n";
     buf_map[terark_state]->tfs.size = buf_map[terark_state]->tfs.content.size();
@@ -356,7 +356,6 @@ bool TfsBuffer::getNextFile(terark::db::IndexIteratorPtr& iip, const std::string
             ret_path.resize(iter - ret_path.begin());
         }
         file_name = std::string(ret_path.begin() + dir.size(),ret_path.end());
-        std::cout << "getNextFile:" << file_name << std::endl;
         return true;
     }
     return false;

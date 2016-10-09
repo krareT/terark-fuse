@@ -7,7 +7,7 @@
 #include <mutex>
 #include "tfs.h"
 #include <cstdio>
-
+#include <tbb/enumerable_thread_specific.h>
 struct FileInfo{
 
     terark::TFS tfs;
@@ -37,6 +37,7 @@ private:
     void getSataFromTfs(terark::TFS&,struct stat &st);
     void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
     const char *terark_state = "/terark-state";
+    static tbb::enumerable_thread_specific<terark::db::DbContextPtr> thread_specific_context;
 public:
     enum class FILE_TYPE {
         NOF,DIR, REG,
@@ -81,5 +82,7 @@ private:
     FILE_TYPE existInTerark(const std::string &);
 
     void writeToTerarkState(const char *buf,const size_t size);
+
+    terark::db::DbContextPtr getThreadSafeContext();
 };
 #endif //TERARK_FUSE_TFSBUFFER_H

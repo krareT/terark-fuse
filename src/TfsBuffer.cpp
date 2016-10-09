@@ -7,6 +7,7 @@
 #include <iostream>
 #include "TfsBuffer.h"
 const  uint64_t ns_per_sec = 1000000000;
+tbb::enumerable_thread_specific<terark::db::DbContextPtr> TfsBuffer::thread_specific_context;
 
 terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool update) {
     std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
@@ -389,4 +390,14 @@ void TfsBuffer::writeToTerarkState(const char *buf, const size_t size) {
         std::cout << "Compact!" << std::endl;
         compact();
     }
+}
+
+terark::db::DbContextPtr TfsBuffer::getThreadSafeContext() {
+
+    terark::db::DbContextPtr ctx = thread_specific_context.local();
+    if ( ctx == nullptr){
+        ctx = tab->createDbContext();
+    }
+    assert(ctx != nullptr);
+    return ctx;
 }

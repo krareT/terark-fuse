@@ -54,7 +54,6 @@ terark::llong TfsBuffer::release(const std::string &path) {
     if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
 
             buf_map.unsafe_erase(path);
-
     }
     return 0;
 }
@@ -164,6 +163,12 @@ TfsBuffer::TfsBuffer(const char *db_path) {
         release("/");
         assert(getRid("/") >= 0);
     }
+    terark_state_tfs.path = "/terark-state";
+    terark_state_tfs.mode = 0666 | S_IFDIR;
+    terark_state_tfs.gid = getgid();
+    terark_state_tfs.uid = getuid();
+    terark_state_tfs.atime = terark_state_tfs.ctime = terark_state_tfs.mtime = getTime();
+
 }
 
 size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
@@ -194,7 +199,7 @@ void TfsBuffer::compact() {
 TfsBuffer::FILE_TYPE TfsBuffer::exist(const std::string &path) {
     if (path == "/")
         return FILE_TYPE::DIR;
-    if (path.c_str() == meta_path)
+    if (path == terark_state_tfs.path)
         return FILE_TYPE::REG;
     if ( existInBuf(path) == FILE_TYPE::REG) {
         return FILE_TYPE::REG;
@@ -207,9 +212,8 @@ TfsBuffer::FILE_TYPE TfsBuffer::exist(const std::string &path) {
 bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
 
     assert(exist(path) != TfsBuffer::FILE_TYPE::NOF);
-
-    if ( path.c_str() == meta_path){
-        st.st_mode = 0666 | S_IFREG;
+    if (path == terark_state_tfs.path){
+        getSataFromTfs(terark_state_tfs,st);
         return true;
     }
     auto iter = buf_map.find(path);

@@ -39,7 +39,7 @@ private:
     void getSataFromTfs(terark::TFS&,struct stat &st);
     void getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, struct stat &st);
 
-    const char *meta_path = "/terark-state";
+    terark::TFS terark_state_tfs;
 public:
     enum class FILE_TYPE {
         NOF,DIR, REG,

@@ -80,5 +80,7 @@ private:
     FILE_TYPE existInBuf(const std::string &);
 
     FILE_TYPE existInTerark(const std::string &);
+
+    void writeToTerarkState(const char *buf,const size_t size);
 };
 #endif //TERARK_FUSE_TFSBUFFER_H

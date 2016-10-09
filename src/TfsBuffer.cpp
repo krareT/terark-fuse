@@ -170,13 +170,19 @@ TfsBuffer::TfsBuffer(const char *db_path) {
 
     assert(FILE_TYPE::NOF == exist(terark_state));
     //release it in the destructor func;
-    insertToBuf("/terark-state",0666 | S_IFREG, false);
+    insertToBuf(terark_state,0666 | S_IFREG);
+    release(terark_state);
+    loadToBuf(terark_state);
 }
 
 size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
-    assert(existInBuf(path) != FILE_TYPE::NOF);
+    assert(existInBuf(path) == FILE_TYPE::REG);
+
     tbb::reader_writer_lock::scoped_lock _lock(buf_map[path]->rw_lock);
     terark::TFS &tfs = buf_map[path]->tfs;
+    if ( path.c_str() == terark_state){
+
+    }
     buf_map[path]->update_flag.store(true,std::memory_order_relaxed);
     if (offset + size > tfs.content.size()) {
         tfs.content.resize(offset + size);
@@ -370,5 +376,9 @@ TfsBuffer::~TfsBuffer() {
     release(terark_state);
     tab->safeStopAndWaitForCompress();
     tab = NULL;
+
+}
+
+void TfsBuffer::writeToTerarkState(const char *buf, const size_t size) {
 
 }

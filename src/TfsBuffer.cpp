@@ -17,10 +17,12 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool u
     auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [this](FileInfo* fi){
 
         if (fi->update_flag.load(std::memory_order_relaxed)){
+
             terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
             auto context = this->getThreadSafeContext();
             auto rid = context->upsertRow(fi->tfs.encode(row_builder));
             assert(rid >= 0);
+            //std::cout << "write to terark:" << fi->tfs.path << std::endl;
             //TODO:what should i do if upsertRow failed.
         }
         delete fi;
@@ -38,6 +40,7 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool u
     info_ptr->tfs.blocks = 0;
     info_ptr->tfs.ino = 0;
     {
+        //TODO: here is a data race if 2 or more threads create the same file.
         tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
         buf_map_modify[path] = info_ptr;
     }
@@ -56,6 +59,7 @@ terark::llong TfsBuffer::release(const std::string &path) {
     {
         tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
         fi_ptr->ref --;
+        //std::cout << "release : " << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
         if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
             {
                 tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock);//writer lock
@@ -127,7 +131,19 @@ terark::llong TfsBuffer::loadToBuf(const std::string &path) {
     });
 
     terark::valvec<terark::byte> row;
-    auto rid = getRid(path);
+    terark::llong rid = getRid(path);
+    if ( rid < 0)
+        return -ENOENT;
+
+//    int times = 0;
+//    terark::llong rid;
+//    int times = 0;
+//    do{
+//        rid = getRid(path);
+//        std::cout << "getRid :" << times++ << std::endl;
+//        sleep()
+//    }while( rid < 0);
+
     auto ctx = getThreadSafeContext();
     ctx->getValue(rid,&row);
     info_ptr->tfs.decode(row);
@@ -144,6 +160,7 @@ long long TfsBuffer::getRid(const std::string &path) {
     auto ctx = getThreadSafeContext();
     terark::valvec<terark::llong> ridvec;
     std::string path_str = path;
+
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
     if ( ridvec.size() != 0)
         return *std::max_element(ridvec.begin(),ridvec.end());
@@ -190,7 +207,7 @@ TfsBuffer::TfsBuffer(const char *db_path) {
     }
 
     //release it in the destructor func;
-    if ( existInTerark(terark_state) == FILE_TYPE::NOF) {
+    if (false == ctx->indexKeyExists(path_idx_id,terark_state)) {
         insertToBuf(terark_state, 0666 | S_IFREG);
         release(terark_state);
     }
@@ -286,9 +303,10 @@ bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
 
 bool TfsBuffer::remove(const std::string &path) {
 
-//    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-//    ctx->removeRow(getRid(path));
-    getThreadSafeContext()->removeRow(getRid(path));
+    auto rid = getRid(path);
+    if (rid < 0)
+        return false;
+    getThreadSafeContext()->removeRow(rid);
     return true;
 }
 
@@ -360,10 +378,10 @@ int TfsBuffer::truncate(const std::string &path,size_t new_size) {
         //path in terark
         terark::valvec<terark::byte> row;
         terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
-        auto ctx = getThreadSafeContext();
-       auto rid = getRid(path);
+        auto rid = getRid(path);
         if ( rid < 0)
             return -ENOENT;
+        auto ctx = getThreadSafeContext();
         ctx->getValue(rid,&row);
         terark::TFS tfs;
         tfs.decode(row);

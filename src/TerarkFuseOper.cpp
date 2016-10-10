@@ -17,11 +17,8 @@ TerarkFuseOper::TerarkFuseOper(const char *dbpath):tb(dbpath){
 
 int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *ffi) {
 
-//    if (tb.exist(path) != TfsBuffer::FILE_TYPE::NOF)
-//        return -EEXIST;
     if (tb.insertToBuf(path, mod | S_IFREG) < 0)
         return -ENOENT;
-
     return 0;
 }
 
@@ -32,27 +29,13 @@ int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
 }
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
-//
-//    auto ret = tb.exist(path);
-//    if (ret == TfsBuffer::FILE_TYPE::NOF) {
-//        return -ENOENT;
-//    }
-//    if (ret == TfsBuffer::FILE_TYPE::DIR){
-//        return -EISDIR;
-//    }
-//    if (tb.loadToBuf(path) < 0)
-//        return -ENOENT;
-//    return 0;
+
     return tb.loadToBuf(path);
 }
 
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
-    
 
-    //std::cout << "TerarkFuseOper::read:" << path << std::endl;
-    //check if exist
     return tb.read(path,buf,size,offset);
-
 }
 
 int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -75,14 +58,8 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
-    //std::cout << "TerarkFuseOper::write:" << path << std::endl;
-    //std::cout << "TerarkFuseOper::write:flag:" << printFlag(ffi->flags) << std::endl;
-
     if (size + offset >= content_max_len)
         return -EIO;
-    //check if exist
-//    if (tb.exist(path) == TfsBuffer::FILE_TYPE::NOF)
-//        return -ENOENT;
     return tb.write(path,buf,size,offset);
 }
 void TerarkFuseOper::printStat(struct stat &st) {
@@ -234,7 +211,7 @@ int TerarkFuseOper::unlink(const char *path) {
         return -EACCES;
     }
     auto ret = tb.remove(path);
-    return ret ?0:-ENOENT;
+    return ret ? 0 : -ENOENT;
 }
 
 int TerarkFuseOper::rmdir(const char *path) {
@@ -285,10 +262,10 @@ int TerarkFuseOper::utimens(const char *path, const timespec tv[2]) {
     return 0;
 }
 int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
-    return 0;
+
+    return tb.release(path);
 }
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
-
-    return tb.release(path);
+    return 0;
 }

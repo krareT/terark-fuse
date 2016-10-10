@@ -17,10 +17,11 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool u
 
     uint64_t time_ns = getTime();
     auto context = ctx;
-    auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [context](FileInfo* fi){
+    auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [this](FileInfo* fi){
 
         if (fi->update_flag.load(std::memory_order_relaxed)){
             terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
+            auto context = this->getThreadSafeContext();
             auto rid = context->upsertRow(fi->tfs.encode(row_builder));
             assert(rid >= 0);
             //TODO:what should i do if upsertRow failed.
@@ -97,10 +98,11 @@ terark::llong TfsBuffer::loadToBuf(const std::string &path) {
     assert(existInBuf(path) == FILE_TYPE::NOF);
     std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
     auto context = ctx;
-    auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [context](FileInfo* fi){
+    auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [this](FileInfo* fi){
 
         if (fi->update_flag.load(std::memory_order_relaxed)){
             terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
+            auto context = this->getThreadSafeContext();
             auto rid = context->upsertRow(fi->tfs.encode(row_builder));
             //TODO:what should i do if upsertRow failed.
             assert(rid >= 0);
@@ -181,22 +183,23 @@ TfsBuffer::TfsBuffer(const char *db_path) {
 }
 
 size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
-    assert(existInBuf(path) == FILE_TYPE::REG);
-
-    tbb::reader_writer_lock::scoped_lock _lock(buf_map[path]->rw_lock);
-    terark::TFS &tfs = buf_map[path]->tfs;
+    auto iter = buf_map.find(path);
+    if (iter == buf_map.end())
+        return 0;
+    auto file_ptr = iter->second;
+    tbb::reader_writer_lock::scoped_lock _lock(file_ptr->rw_lock);
+    terark::TFS &tfs = file_ptr->tfs;
     if ( strcmp(path.c_str(),terark_state) == 0){
         writeToTerarkState(buf,size);
         return size;
     }
-    buf_map[path]->update_flag.store(true,std::memory_order_relaxed);
+    file_ptr->update_flag.store(true,std::memory_order_relaxed);
     if (offset + size > tfs.content.size()) {
         tfs.content.resize(offset + size);
     }
     tfs.content.replace(offset, size, buf, size);
     tfs.size = tfs.content.size();
     tfs.mtime = getTime();
-
     return size;
 
 }
@@ -232,19 +235,20 @@ bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
         getSataFromTfs(tfs,st);
         return true;
     }
+    //get stat from terark
     auto rid = getRid(path);
     if (rid < 0)
         return false;
     terark::TFS_Colgroup_file_stat tfs_fs;
     terark::valvec<terark::byte> cg_data;
-    {
-        std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-        ctx->selectOneColgroup(rid, file_stat_cg_id, &cg_data);
-    }
+//    {
+//        std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
+//        ctx->selectOneColgroup(rid, file_stat_cg_id, &cg_data);
+//    }
+    getThreadSafeContext()->selectOneColgroup(rid,file_stat_cg_id,&cg_data);
     if (cg_data.size() == 0) {
         return false;
     }
-
     tfs_fs.decode(cg_data);
     getSataFromTfsCg(tfs_fs,st);
     return true;
@@ -252,16 +256,24 @@ bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
 
 bool TfsBuffer::remove(const std::string &path) {
 
-    if ( existInTerark(path) == FILE_TYPE::NOF)
-        return false;
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-    ctx->removeRow(getRid(path));
+//    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
+//    ctx->removeRow(getRid(path));
+    getThreadSafeContext()->removeRow(getRid(path));
     return true;
 }
 
 TfsBuffer::FILE_TYPE TfsBuffer::existInTerark(const std::string &path) {
-
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
+//
+//    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
+//    if (ctx->indexKeyExists(path_idx_id, path)) {
+//        return path.back() == '/' ? FILE_TYPE::DIR : FILE_TYPE::REG;
+//    }
+//    if (path.back() == '/' ) {
+//        return ctx->indexKeyExists(path_idx_id,path.substr(0,path.size() - 1)) ? FILE_TYPE::REG: FILE_TYPE::NOF;
+//    } else {
+//        return ctx->indexKeyExists(path_idx_id,path + "/")? FILE_TYPE::DIR : FILE_TYPE::NOF;
+//    }
+    auto ctx = getThreadSafeContext();
     if (ctx->indexKeyExists(path_idx_id, path)) {
         return path.back() == '/' ? FILE_TYPE::DIR : FILE_TYPE::REG;
     }
@@ -397,6 +409,7 @@ terark::db::DbContextPtr TfsBuffer::getThreadSafeContext() {
     terark::db::DbContextPtr ctx = thread_specific_context.local();
     if ( ctx == nullptr){
         ctx = tab->createDbContext();
+        thread_specific_context.local() = ctx;
     }
     assert(ctx != nullptr);
     return ctx;

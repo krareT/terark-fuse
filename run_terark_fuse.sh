@@ -17,6 +17,6 @@ fusermount -u $mnt_dir
 mkdir $mnt_dir
 mkdir $core_dir
 cp ./dbmeta.json $core_dir/
-#rm -f $core_dir/run.lock
-#rm -rf $core_dir/g-*
+rm -f $core_dir/run.lock
+rm -rf $core_dir/g-*
 ./build/terark_fuse -f -o kernel_cache -o big_writes -o nonempty -o allow_other -o auto_unmount $mnt_dir -terark_core=$core_dir

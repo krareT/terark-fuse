@@ -10,13 +10,10 @@ const  uint64_t ns_per_sec = 1000000000;
 tbb::enumerable_thread_specific<terark::db::DbContextPtr> TfsBuffer::thread_specific_context;
 
 terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool update) {
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-    if (buf_map.find(path) != buf_map.end())
-        return -EEXIST;
+
     struct timespec time;
 
     uint64_t time_ns = getTime();
-    auto context = ctx;
     auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [this](FileInfo* fi){
 
         if (fi->update_flag.load(std::memory_order_relaxed)){
@@ -40,35 +37,47 @@ terark::llong TfsBuffer::insertToBuf(const std::string &path, mode_t mode,bool u
     info_ptr->tfs.nlink = 0;
     info_ptr->tfs.blocks = 0;
     info_ptr->tfs.ino = 0;
-    
-    buf_map[path] = info_ptr;
-    return buf_map.find(path) != buf_map.end();
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
+        buf_map_modify[path] = info_ptr;
+    }
+    return 0;
 }
 terark::llong TfsBuffer::release(const std::string &path) {
-    assert(existInBuf(path) != FILE_TYPE::NOF);
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-    auto fi_ptr = buf_map[path];
-    tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
-    fi_ptr->ref --;
-    //std::cout << "release:" << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
-    if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
 
-            buf_map.unsafe_erase(path);
+    std::shared_ptr<FileInfo> fi_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
+        auto iter = buf_map_modify.find(path);
+        if ( iter == buf_map_modify.end())
+            return -ENOENT;
+        fi_ptr = iter->second;
+    }
+    {
+        tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
+        fi_ptr->ref --;
+        if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
+            {
+                tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock);//writer lock
+                buf_map_modify.unsafe_erase(path);
+            }
+        }
     }
     return 0;
 }
 
-TfsBuffer::FILE_TYPE TfsBuffer::existInBuf(const std::string &path) {
-    return buf_map.find(path) != buf_map.end() ? FILE_TYPE::REG:FILE_TYPE::NOF;
-}
-
 int TfsBuffer::read(const std::string &path, char *buf, size_t size, size_t offset) {
-    assert(existInBuf(path) != FILE_TYPE::NOF);
-
-    auto ptr = buf_map[path];
+    std::shared_ptr<FileInfo> fi_ptr;
     {
-        auto &content = ptr->tfs.content;
-        tbb::reader_writer_lock::scoped_lock _lock(ptr->rw_lock);
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
+        auto iter = buf_map_modify.find(path);
+        if (iter == buf_map_modify.end())
+            return -ENOENT;
+        fi_ptr = iter->second;
+    }
+    {
+        auto &content = fi_ptr->tfs.content;
+        tbb::reader_writer_lock::scoped_lock _lock(fi_ptr->rw_lock);
         if (offset < content.size()) {
             if (offset + size > content.size())
                 size = content.size() - offset;
@@ -76,7 +85,7 @@ int TfsBuffer::read(const std::string &path, char *buf, size_t size, size_t offs
         } else {
             size = 0;
         }
-        ptr->tfs.atime = getTime();
+        fi_ptr->tfs.atime = getTime();
     }
     return size;
 }
@@ -90,14 +99,20 @@ uint64_t TfsBuffer::getTime() {
 
 terark::llong TfsBuffer::loadToBuf(const std::string &path) {
 
-    if ( existInBuf(path) == FILE_TYPE::REG){
-        auto ptr = buf_map[path];
-        ptr->ref++;
+    std::shared_ptr<FileInfo> fi_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader
+        auto iter = buf_map_modify.find(path);
+        if (iter != buf_map_modify.end()){
+            fi_ptr = iter->second;
+        }else{
+            fi_ptr = nullptr;
+        }
+    }
+    if (fi_ptr != nullptr){
+        fi_ptr->ref ++;
         return 0;
     }
-    assert(existInBuf(path) == FILE_TYPE::NOF);
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-    auto context = ctx;
     auto info_ptr = std::shared_ptr<FileInfo>(new FileInfo, [this](FileInfo* fi){
 
         if (fi->update_flag.load(std::memory_order_relaxed)){
@@ -113,16 +128,20 @@ terark::llong TfsBuffer::loadToBuf(const std::string &path) {
 
     terark::valvec<terark::byte> row;
     auto rid = getRid(path);
+    auto ctx = getThreadSafeContext();
     ctx->getValue(rid,&row);
     info_ptr->tfs.decode(row);
     info_ptr->ref++;
-    buf_map[path] = info_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader
+        buf_map_modify[path] = info_ptr;
+    }
     return 0;
 }
 
 long long TfsBuffer::getRid(const std::string &path) {
 
-    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
+    auto ctx = getThreadSafeContext();
     terark::valvec<terark::llong> ridvec;
     std::string path_str = path;
     ctx->indexSearchExact(path_idx_id, path_str, &ridvec);
@@ -140,8 +159,7 @@ TfsBuffer::TfsBuffer(const char *db_path) {
     assert(std::cout << "Assert is open!" << std::endl);
     tab = terark::TFS::openTable(db_path, true);
     assert(tab != nullptr);
-    ctx = tab->createDbContext();
-    assert(ctx != nullptr);
+
 
     path_idx_id = tab->getIndexId("path");
     file_stat_cg_id = tab->getColgroupId("file_stat");
@@ -163,7 +181,7 @@ TfsBuffer::TfsBuffer(const char *db_path) {
     assert(file_mtime_id < tab->getColumnNum());
     assert(file_content_id < tab->getColumnNum());
 
-    std::lock_guard<std::recursive_mutex>  _lock(ctx_mtx);
+    auto ctx = getThreadSafeContext();
     //create root dict : "/"
     if (false == ctx->indexKeyExists(path_idx_id, "/")) {
         auto ret = this->insertToBuf("/", 0666 | S_IFDIR);
@@ -172,34 +190,41 @@ TfsBuffer::TfsBuffer(const char *db_path) {
     }
 
     //release it in the destructor func;
-    if ( exist(terark_state) == FILE_TYPE::NOF) {
+    if ( existInTerark(terark_state) == FILE_TYPE::NOF) {
         insertToBuf(terark_state, 0666 | S_IFREG);
         release(terark_state);
     }
     loadToBuf(terark_state);
-    buf_map[terark_state]->tfs.content = "Hello Terark!\n";
-    buf_map[terark_state]->tfs.size = buf_map[terark_state]->tfs.content.size();
+    buf_map_modify[terark_state]->tfs.content = "Hello Terark!\n";
+    buf_map_modify[terark_state]->tfs.size = buf_map_modify[terark_state]->tfs.content.size();
 
 }
 
-size_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
-    auto iter = buf_map.find(path);
-    if (iter == buf_map.end())
-        return 0;
-    auto file_ptr = iter->second;
-    tbb::reader_writer_lock::scoped_lock _lock(file_ptr->rw_lock);
-    terark::TFS &tfs = file_ptr->tfs;
+int32_t TfsBuffer::write(const std::string &path, const char *buf, size_t size, size_t offset) {
+
+    std::shared_ptr<FileInfo> fi_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
+        auto iter = buf_map_modify.find(path);
+        if (iter == buf_map_modify.end())
+            return -ENOENT;
+        fi_ptr = iter->second;
+    }
     if ( strcmp(path.c_str(),terark_state) == 0){
         writeToTerarkState(buf,size);
         return size;
     }
-    file_ptr->update_flag.store(true,std::memory_order_relaxed);
-    if (offset + size > tfs.content.size()) {
-        tfs.content.resize(offset + size);
+    {
+        terark::TFS &tfs = fi_ptr->tfs;
+        tbb::reader_writer_lock::scoped_lock _lock(fi_ptr->rw_lock);
+        fi_ptr->update_flag.store(true,std::memory_order_relaxed);
+        if (offset + size > tfs.content.size()) {
+            tfs.content.resize(offset + size);
+        }
+        tfs.content.replace(offset, size, buf, size);
+        tfs.size = tfs.content.size();
+        tfs.mtime = getTime();
     }
-    tfs.content.replace(offset, size, buf, size);
-    tfs.size = tfs.content.size();
-    tfs.mtime = getTime();
     return size;
 
 }
@@ -214,10 +239,8 @@ void TfsBuffer::compact() {
 
 
 TfsBuffer::FILE_TYPE TfsBuffer::exist(const std::string &path) {
-    if (path == "/")
+    if (path == "/"){
         return FILE_TYPE::DIR;
-    if ( existInBuf(path) == FILE_TYPE::REG) {
-        return FILE_TYPE::REG;
     }
     else{
         return existInTerark(path);
@@ -226,12 +249,19 @@ TfsBuffer::FILE_TYPE TfsBuffer::exist(const std::string &path) {
 
 bool TfsBuffer::getFileInfo(const std::string &path,struct stat &st) {
 
-    assert(exist(path) != TfsBuffer::FILE_TYPE::NOF);
-    auto iter = buf_map.find(path);
-    if (iter != buf_map.end()){
+    std::shared_ptr<FileInfo> fi_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader lock
+        auto iter = buf_map_modify.find(path);
+        if (iter == buf_map_modify.end())
+            fi_ptr = nullptr;
+        else
+            fi_ptr = iter->second;
+    }
+    if (fi_ptr != nullptr){
 
-        tbb::reader_writer_lock::scoped_lock_read _lock(iter->second->rw_lock);
-        auto &tfs = iter->second->tfs;
+        auto &tfs = fi_ptr->tfs;
+        tbb::reader_writer_lock::scoped_lock_read _lock(fi_ptr->rw_lock);
         getSataFromTfs(tfs,st);
         return true;
     }
@@ -263,16 +293,7 @@ bool TfsBuffer::remove(const std::string &path) {
 }
 
 TfsBuffer::FILE_TYPE TfsBuffer::existInTerark(const std::string &path) {
-//
-//    std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-//    if (ctx->indexKeyExists(path_idx_id, path)) {
-//        return path.back() == '/' ? FILE_TYPE::DIR : FILE_TYPE::REG;
-//    }
-//    if (path.back() == '/' ) {
-//        return ctx->indexKeyExists(path_idx_id,path.substr(0,path.size() - 1)) ? FILE_TYPE::REG: FILE_TYPE::NOF;
-//    } else {
-//        return ctx->indexKeyExists(path_idx_id,path + "/")? FILE_TYPE::DIR : FILE_TYPE::NOF;
-//    }
+
     auto ctx = getThreadSafeContext();
     if (ctx->indexKeyExists(path_idx_id, path)) {
         return path.back() == '/' ? FILE_TYPE::DIR : FILE_TYPE::REG;
@@ -319,33 +340,35 @@ void TfsBuffer::getSataFromTfsCg(terark::TFS_Colgroup_file_stat &tfs_fs, stat &s
 }
 
 int TfsBuffer::truncate(const std::string &path,size_t new_size) {
+    std::shared_ptr<FileInfo> fi_ptr;
+    {
+        tbb::spin_rw_mutex::scoped_lock lock(buf_map_rw_lock,false);//reader
+        auto iter = buf_map_modify.find(path);
+        if (iter == buf_map_modify.end())
+            fi_ptr = nullptr;
+        else
+            fi_ptr = iter->second;
+    }
 
-    assert(exist(path) == FILE_TYPE::REG);
-    auto iter = buf_map.find(path);
-    if (iter != buf_map.end()){
+    if (fi_ptr != nullptr){
         //path in buf
-        tbb::reader_writer_lock::scoped_lock _lock(iter->second->rw_lock);
-        auto &tfs = iter->second->tfs;
+        auto &tfs = fi_ptr->tfs;
+        tbb::reader_writer_lock::scoped_lock _lock(fi_ptr->rw_lock);
         tfs.content.resize(new_size,'\0');
         tfs.size = new_size;
     }else{
         //path in terark
         terark::valvec<terark::byte> row;
         terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
-        {
-            std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-            auto rid = getRid(path);
-            if ( rid < 0)
-                return -ENOENT;
-            ctx->getValue(rid,&row);
-        }
+        auto ctx = getThreadSafeContext();
+       auto rid = getRid(path);
+        if ( rid < 0)
+            return -ENOENT;
+        ctx->getValue(rid,&row);
         terark::TFS tfs;
         tfs.decode(row);
         tfs.content.resize(new_size,'\0');
-        {
-            std::lock_guard<std::recursive_mutex> _lock(ctx_mtx);
-            ctx->upsertRow(tfs.encode(row_builder));
-        }
+        ctx->upsertRow(tfs.encode(row_builder));
     }
     return 0;
 }

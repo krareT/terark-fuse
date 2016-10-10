@@ -26,26 +26,24 @@ int TerarkFuseOper::create(const char *path, mode_t mod, struct fuse_file_info *
 }
 
 int TerarkFuseOper::getattr(const char *path, struct stat *stbuf) {
-    auto ret = tb.exist(path);
-    if ( ret == TfsBuffer::FILE_TYPE::NOF)
-        return -ENOENT;
     if (false == tb.getFileInfo(path,*stbuf))
         return  -ENOENT;
     return 0;
 }
 
 int TerarkFuseOper::open(const char *path, struct fuse_file_info *ffo) {
-
-    auto ret = tb.exist(path);
-    if (ret == TfsBuffer::FILE_TYPE::NOF) {
-        return -ENOENT;
-    }
-    if (ret == TfsBuffer::FILE_TYPE::DIR){
-        return -EISDIR;
-    }
-    if (tb.loadToBuf(path) < 0)
-        return -ENOENT;
-    return 0;
+//
+//    auto ret = tb.exist(path);
+//    if (ret == TfsBuffer::FILE_TYPE::NOF) {
+//        return -ENOENT;
+//    }
+//    if (ret == TfsBuffer::FILE_TYPE::DIR){
+//        return -EISDIR;
+//    }
+//    if (tb.loadToBuf(path) < 0)
+//        return -ENOENT;
+//    return 0;
+    return tb.loadToBuf(path);
 }
 
 int TerarkFuseOper::read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
@@ -292,8 +290,5 @@ int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
 
-    if (TfsBuffer::FILE_TYPE::NOF == tb.exist(path))
-        return -ENOENT;
-    tb.release(path);
-    return 0;
+    return tb.release(path);
 }

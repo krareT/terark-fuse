@@ -8,6 +8,7 @@
 #include "tfs.h"
 #include <cstdio>
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/spin_rw_mutex.h>
 struct FileInfo{
 
     terark::TFS tfs;
@@ -22,9 +23,8 @@ class TfsBuffer {
 
 private:
     terark::db::CompositeTablePtr tab;
-    tbb::concurrent_unordered_map<std::string, std::shared_ptr<FileInfo>> buf_map;
-    std::recursive_mutex ctx_mtx;
-    terark::db::DbContextPtr ctx;
+    tbb::spin_rw_mutex buf_map_rw_lock;
+    tbb::concurrent_unordered_map<std::string, std::shared_ptr<FileInfo>> buf_map_modify;
     uint32_t path_idx_id;
     size_t file_stat_cg_id;
     size_t file_mode_id;
@@ -59,7 +59,7 @@ public:
 
     int read(const std::string &, char *buf, size_t size, size_t off);
 
-    size_t write(const std::string &path, const char *buf, size_t size, size_t offset);
+    int32_t write(const std::string &path, const char *buf, size_t size, size_t offset);
 
     bool getFileInfo(const std::string &path, struct stat &st);
 
@@ -77,7 +77,7 @@ private:
 
     long long getRid(const std::string &path);
 
-    FILE_TYPE existInBuf(const std::string &);
+
 
     FILE_TYPE existInTerark(const std::string &);
 

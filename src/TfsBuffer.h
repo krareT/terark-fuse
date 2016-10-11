@@ -70,6 +70,7 @@ public:
 
     bool remove(const std::string &path);
 
+    int32_t flush(const std::string &path);
     ~TfsBuffer();
 
 private:

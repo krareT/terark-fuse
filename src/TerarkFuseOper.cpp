@@ -262,10 +262,9 @@ int TerarkFuseOper::utimens(const char *path, const timespec tv[2]) {
     return 0;
 }
 int TerarkFuseOper::flush(const char *path, struct fuse_file_info *ffi) {
-
-    return tb.release(path);
+    return tb.flush(path);
 }
 
 int TerarkFuseOper::release(const char *path, struct fuse_file_info *ffi) {
-    return 0;
+    return tb.release(path);
 }

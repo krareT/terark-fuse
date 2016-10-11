@@ -9,7 +9,7 @@ link_directories(${TERARKDB_PATH}/lib)
 
 link_directories(/usr/local/lib/)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -D_FILE_OFFSET_BITS=64 -DNDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -D_FILE_OFFSET_BITS=64 -DNDEBUG -g")
 
 set(SOURCE_FILES src/main.cpp src/TerarkFuseOper.cpp src/TerarkFuseOper.h src/TfsBuffer.cpp src/TfsBuffer.h)
 

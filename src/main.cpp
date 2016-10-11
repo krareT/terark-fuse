@@ -59,13 +59,13 @@ void fuse_init(struct fuse_operations &fo, TerarkFuseOper &tfo) {
     fo.mkdir = terark_mkdir;
     fo.opendir = terark_opendir;
     fo.unlink = terark_unlink;
-    fo.rmdir = terark_rmdir;
-    fo.chmod = terark_chmod;
-    fo.rename = terark_rename;
-    fo.chown = terark_chown;
+    //fo.rmdir = terark_rmdir;
+    //fo.chmod = terark_chmod;
+    //fo.rename = terark_rename;
+    //fo.chown = terark_chown;
     fo.truncate = terark_truncate;
-    fo.utime = terark_utime;
-    fo.utimens = terark_utimens;
+    //fo.utime = terark_utime;
+    //fo.utimens = terark_utimens;
     fo.flush = terark_flush;
     fo.release = terark_release;
 }

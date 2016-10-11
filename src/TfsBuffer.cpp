@@ -59,7 +59,7 @@ terark::llong TfsBuffer::release(const std::string &path) {
     {
         tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
         fi_ptr->ref --;
-        std::cerr << "release : " << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
+        //std::cerr << "release : " << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
         if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
             {
                 //Must be carefule, maybe deadlock!
@@ -85,9 +85,9 @@ terark::llong TfsBuffer::loadToBuf(const std::string &path) {
     if (fi_ptr != nullptr){
         {
             tbb::reader_writer_lock::scoped_lock lock(fi_ptr->rw_lock);
-            if (fi_ptr->ref.load(std::memory_order_relaxed) != 0){
+            if (fi_ptr->ref.load(std::memory_order_relaxed) > 0){
                 fi_ptr->ref++;
-                std::cerr << "exist in buf:" << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
+                //std::cerr << "exist in buf:" << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
                 return 0;
             }
         }
@@ -110,20 +110,11 @@ terark::llong TfsBuffer::loadToBuf(const std::string &path) {
     if ( rid < 0)
         return -ENOENT;
 
-//    int times = 0;
-//    terark::llong rid;
-//    int times = 0;
-//    do{
-//        rid = getRid(path);
-//        std::cout << "getRid :" << times++ << std::endl;
-//        sleep()
-//    }while( rid < 0);
-
     auto ctx = getThreadSafeContext();
     ctx->getValue(rid,&row);
     info_ptr->tfs.decode(row);
     info_ptr->ref++;
-    std::cerr << "exist in terark:" << path << " " << info_ptr->ref.load(std::memory_order_relaxed) << std::endl;
+    //std::cerr << "exist in terark:" << path << " " << info_ptr->ref.load(std::memory_order_relaxed) << std::endl;
     {
         tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock, false);//reader
         buf_map_modify[path] = info_ptr;

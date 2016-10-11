@@ -58,7 +58,7 @@ int TerarkFuseOper::readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int TerarkFuseOper::write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *ffi) {
 
-    if (size + offset >= content_max_len)
+    if (size + offset > content_max_len)
         return -EIO;
     return tb.write(path,buf,size,offset);
 }

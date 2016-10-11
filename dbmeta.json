@@ -62,7 +62,7 @@
     }
   },
 
-  "MaxWrSegSize": "500M",
+  "MaxWrSegSize": "30M",
   "MinMergeSegNum": 3,
   "TableIndex": [
     {

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #make
-mnt_dir=/newssd1/posix_tefuse/
+mnt_dir=/newssd1/posix_benchmark/tefuse/
 core_dir=/newssd1/tefuse_core/
 echo "------------------- cp ./dbmeta.json $core_dir/"
 echo "-------------------rebuild"

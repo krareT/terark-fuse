@@ -221,13 +221,11 @@ int TerarkFuseOper::rmdir(const char *path) {
         //remove root is unaccess
         return -EACCES;
     }
-    auto ret = tb.exist(path);
-    if (ret == TfsBuffer::FILE_TYPE::REG)
-        return -ENOTDIR;
-    if (ret == TfsBuffer::FILE_TYPE::NOF){
-        return -ENOENT;
+    std::string path_str = path;
+    if (path_str.back() != '/'){
+        path_str.push_back('/');
     }
-    tb.remove(path);
+    tb.remove(path_str);
     return 0;
 }
 

@@ -57,16 +57,17 @@ terark::llong TfsBuffer::release(const std::string &path) {
         fi_ptr = iter->second;
     }
     {
-        tbb::reader_writer_lock::scoped_lock __lock(fi_ptr->rw_lock);
-        fi_ptr->ref --;
+
+        fi_ptr->ref--;//atomic ,dont need lock
         //std::cerr << "release : " << path << " " << fi_ptr->ref.load(std::memory_order_relaxed) << std::endl;
-        if ( fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
-            {
-                //Must be carefule, maybe deadlock!
-                tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock);//writer lock
-                buf_map_modify.unsafe_erase(path);
-            }
+        if (fi_ptr->ref.load(std::memory_order_relaxed) <= 0) {
+                {
+                    //Must be carefule, maybe deadlock!
+                    tbb::spin_rw_mutex::scoped_lock scoped_lock(buf_map_rw_lock);//writer lock
+                    buf_map_modify.unsafe_erase(path);
+                }
         }
+
     }
     return 0;
 }
@@ -470,15 +471,15 @@ int32_t TfsBuffer::flush(const std::string &path) {
     terark::NativeDataOutput<terark::AutoGrownMemIO> row_builder;
     auto context = this->getThreadSafeContext();
     {
-        tbb::reader_writer_lock::scoped_lock lock(fi_ptr->rw_lock);
+        tbb::reader_writer_lock::scoped_lock_read lock(fi_ptr->rw_lock);
         if (fi_ptr->update_flag.load(std::memory_order_relaxed) == false)
             return 0;
-
         auto rid = context->upsertRow(fi_ptr->tfs.encode(row_builder));
         //TODO:what should i do if upsertRow failed.
         if (rid < 0)
             return -EIO;
-        fi_ptr->update_flag.store(false,std::memory_order_relaxed);
+        fi_ptr->update_flag.store(false, std::memory_order_relaxed);
+
     }
     return 0;
 }

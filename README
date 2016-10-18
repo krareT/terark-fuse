@@ -1,1 +1,3 @@
 Read the run_terark_fuse.sh
+如何运行：
+  打开run_terark_fuse.sh，配置其中的mnt_dir和core_dir，然后运行脚本就可以了。mnt_dir是fuse挂在的目录。core_dir是terarkdb存储数据的地方。
